@@ -116,7 +116,10 @@ func (m *Manager) Start(profile config.Profile, client config.ClientSettings, on
 // "tcp:127.0.0.1:port" loopback listener on Windows (AF_UNIX + gRPC unix:// targets are
 // unreliable there, and vkturn already supports the tcp: form with token auth).
 func (m *Manager) dial(token string) (*grpc.ClientConn, error) {
-	deadline := time.Now().Add(10 * time.Second)
+	// Generous ceiling: on a slow machine (e.g. a low-spec VM) vkturn's cold start can take
+	// well over ten seconds before it binds the AppControl listener. The loop polls every
+	// 50ms and returns the instant the listener answers, so a fast host is not slowed.
+	deadline := time.Now().Add(30 * time.Second)
 	if addr, ok := tcpAddr(m.socketPath); ok {
 		for {
 			if c, err := net.DialTimeout("tcp", addr, time.Second); err == nil {
