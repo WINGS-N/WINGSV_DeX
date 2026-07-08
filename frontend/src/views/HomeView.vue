@@ -28,7 +28,7 @@
             :aria-label="isOn ? 'Отключиться' : 'Подключиться'"
             @click="toggle"
           >
-            <svg viewBox="0 0 24 24" fill="currentColor" class="h-[96px] w-[96px]">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="relative z-[2] h-[96px] w-[96px]">
               <path
                 d="M13,3h-2v10h2zM17.83,5.17l-1.42,1.42A6.97,6.97 0,0 1,19 12c0,3.87 -3.13,7 -7,7s-7,-3.13 -7,-7c0,-2.09 0.91,-4 2.41,-5.41L6,5.17A8.96,8.96 0,0 0,3 12c0,4.97 4.03,9 9,9s9,-4.03 9,-9c0,-2.76 -1.24,-5.23 -3.17,-6.83z"
               />
@@ -349,12 +349,41 @@ onUnmounted(() => {
 /* Connected power button: green-to-blue fill + a thin conic gradient rim (our 180px
    size unchanged). The animated traffic glow around it lives in PowerGlow. */
 .power-on {
-  background: radial-gradient(circle at 50% 36%, #1fbf7a 0%, #1866d6 58%, #1259d1 100%);
+  background: radial-gradient(circle at 50% 50%, #1b7fe0 0%, #1866d6 56%, #1259d1 100%);
+}
+/* Green tint is not pinned to one spot: two soft green pools sit near the rim and slowly
+   orbit the center, so the green drifts around the edges over a blue base. Clipped to the
+   circle by the round pseudo-element's own border-radius. */
+.power-on::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 9999px;
+  background:
+    radial-gradient(38% 38% at 74% 30%, rgba(31, 191, 122, 0.95) 0%, rgba(31, 191, 122, 0) 70%),
+    radial-gradient(34% 34% at 28% 72%, rgba(24, 200, 128, 0.62) 0%, rgba(24, 200, 128, 0) 72%);
+  animation: power-green-float 9s linear infinite;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .power-on::after {
+    animation: none;
+  }
+}
+@keyframes power-green-float {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 .power-on::before {
   content: '';
   position: absolute;
   inset: -2px;
+  z-index: 1;
   border-radius: 9999px;
   padding: 2px;
   background: conic-gradient(from -90deg, #16b877, #45a6ff, #2f7ff0, #16b877);
