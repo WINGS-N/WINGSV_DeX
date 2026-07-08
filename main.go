@@ -81,6 +81,11 @@ func main() {
 			// on in the tray until the user picks Quit.
 			DisableQuitOnLastWindowClosed: true,
 		},
+		Windows: application.WindowsOptions{
+			// Same tray behaviour as Linux: closing the window keeps the app alive in the
+			// notification area (the tray icon reopens it as a popover).
+			DisableQuitOnLastWindowClosed: true,
+		},
 	})
 	connectionSvc.SetApp(app)
 

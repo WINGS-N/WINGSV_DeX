@@ -5,7 +5,9 @@ package shell
 
 import (
 	_ "embed"
+	"runtime"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -67,6 +69,15 @@ func New(app *application.App, deps Deps) *Controller {
 	c.tray.SetIcon(iconPNG)
 	c.tray.SetTooltip("WINGS V")
 	c.tray.SetMenu(c.buildMenu())
+
+	// On Windows, clicking the tray icon opens the window as a popover next to the
+	// notification area (left-click toggles it, the tray positions it; right-click still
+	// shows the menu). The debounce avoids the click hiding then immediately re-showing the
+	// window. On Linux the notification-area popover is not viable (see the tray note), so
+	// there the menu's "Открыть" remains the way to show the window.
+	if runtime.GOOS == "windows" {
+		c.tray.AttachWindow(c.win).WindowOffset(8).WindowDebounce(200 * time.Millisecond)
+	}
 
 	if deps.StateEvent != "" {
 		app.Event.On(deps.StateEvent, func(*application.CustomEvent) { c.refresh() })
