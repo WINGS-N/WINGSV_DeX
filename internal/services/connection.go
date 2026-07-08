@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strconv"
@@ -275,15 +276,20 @@ func (s *ConnectionService) fail(err error) (ConnectionState, error) {
 // managed profiles (the node mints it), otherwise straight from the profile. The
 // peer endpoint is always vkturn's local listen, so WG traffic flows into vkturn.
 func (s *ConnectionService) resolveWG(p config.Profile, cs config.ClientSettings) (dataplane.WGConfig, error) {
+	log.Printf("[resolveWG] managed=%v profile_privkey_len=%d peerpub_len=%d addr=%q",
+		p.Managed, len(p.WG.PrivateKey), len(p.WG.PublicKey), p.WG.Addresses)
 	if p.Managed {
 		token, err := base64.StdEncoding.DecodeString(p.ProvisionToken)
 		if err != nil {
 			return dataplane.WGConfig{}, fmt.Errorf("provision token: %w", err)
 		}
-		wg, err := s.manager.Provision(p.ProvisionClientID, token, machineHWID(), uint32(endpointPort(cs.LocalEndpoint)))
+		hwid := machineHWID()
+		wg, err := s.manager.Provision(p.ProvisionClientID, token, hwid, uint32(endpointPort(cs.LocalEndpoint)))
 		if err != nil {
 			return dataplane.WGConfig{}, err
 		}
+		log.Printf("[provision] hwid=%q -> privkey_len=%d peerpub_len=%d addr=%q allowed=%q",
+			hwid, len(wg.GetPrivateKey()), len(wg.GetServerPublicKey()), wg.GetAddress(), wg.GetAllowedIps())
 		cfg := dataplane.WGConfig{
 			Interface:     wgInterface,
 			PrivateKey:    wg.GetPrivateKey(),
