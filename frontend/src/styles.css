@@ -56,6 +56,20 @@
     overflow-x: clip;
   }
 
+  /* Hide scrollbars everywhere. WebKitGTK (Linux) uses invisible overlay bars, but
+     WebView2 (Windows) draws a prominent classic scrollbar on scrollable panes (Home,
+     VK TURN settings); this matches the phone-like design across both engines. Scrolling
+     still works. */
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
   /* Defensive: keep flex/grid items from inflating their parent past viewport. */
   body * {
     min-width: 0;
