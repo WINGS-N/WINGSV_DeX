@@ -74,7 +74,9 @@ jobs:
           build/linux/appimage/build-appimage.sh ${{ matrix.aiarch }} bin dist
           tar -C bin -czf "dist/wingsv-dex-linux-${{ matrix.arch }}.tar.gz" wingsv-dex vkturn
       - uses: actions/upload-artifact@v4
-        with: { name: linux-${{ matrix.arch }}, path: dist/* }
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/*
 
   # One job builds both arches (cross-compile is cheap, no cgo) so a single universal
   # installer can embed both payloads.
@@ -90,8 +92,12 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: pnpm, cache-dependency-path: frontend/pnpm-lock.yaml }
       - name: Tooling
+        # GTK4 + WebKitGTK dev libs are needed to build the wails3 CLI and to type-check
+        # the cgo `application` package during `wails3 generate bindings`, even though the
+        # app itself cross-compiles to Windows without cgo.
         run: |
-          sudo apt-get update && sudo apt-get install -y nsis
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev nsis
           go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.113
           go install github.com/tc-hib/go-winres@latest
       - name: Frontend
@@ -129,10 +135,12 @@ jobs:
             build/windows/installer.nsi
           mv build/windows/wingsv-dex-setup.exe dist/wingsv-dex-setup.exe
       - uses: actions/upload-artifact@v4
-        with: { name: windows, path: |
+        with:
+          name: windows
+          path: |
             dist/wingsv-dex-windows-amd64.zip
             dist/wingsv-dex-windows-arm64.zip
-            dist/wingsv-dex-setup.exe }
+            dist/wingsv-dex-setup.exe
 
   release:
     needs: [linux, windows]
