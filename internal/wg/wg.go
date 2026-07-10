@@ -174,6 +174,7 @@ func awgSetConf(cfg Config) error {
 func Down(cfg Config) error {
 	removeRules(cfg)
 	_ = SetTunnelMasquerade(false, cfg.Interface, AppsMark)
+	_ = SetBypassMasquerade(false, "", 0)
 	if link, err := netlink.LinkByName(cfg.Interface); err == nil {
 		return netlink.LinkDel(link)
 	}
@@ -326,6 +327,24 @@ func tunnelRule(cfg Config, family int) *netlink.Rule {
 		r.Invert = true
 	}
 	return r
+}
+
+// PhysicalEgressIface returns the interface carrying the main-table IPv4 default route -
+// the physical link. The tunnel's own default lives in the tunnel table, so the main
+// table's default is the physical one. Used to scope the bypass masquerade to that link.
+func PhysicalEgressIface() string {
+	routes, err := netlink.RouteListFiltered(netlink.FAMILY_V4, &netlink.Route{Table: mainTable}, netlink.RT_FILTER_TABLE)
+	if err != nil {
+		return ""
+	}
+	for _, r := range routes {
+		if r.Dst == nil { // default route (no destination prefix)
+			if link, err := netlink.LinkByIndex(r.LinkIndex); err == nil {
+				return link.Attrs().Name
+			}
+		}
+	}
+	return ""
 }
 
 // SwapTunnelRule replaces the tunnel policy-routing rule to match a new app-routing
