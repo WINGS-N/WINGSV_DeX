@@ -59,6 +59,8 @@ type command struct {
 type reply struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
+	Rx    int64  `json:"rx,omitempty"`
+	Tx    int64  `json:"tx,omitempty"`
 }
 
 // helper is a running privileged net-helper and the JSON command channel to it. The
@@ -142,6 +144,27 @@ func (c *Controller) Bypass(ip string) error {
 		return errors.New("dataplane: not started")
 	}
 	return c.send(command{Cmd: "bypass", IP: ip})
+}
+
+// Stats returns the tunnel's cumulative rx/tx bytes from the helper's wireguard-go device.
+// Windows-only path (Linux reads sysfs directly); the caller polls it for the live rates.
+func (c *Controller) Stats() (rx, tx int64, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.h == nil {
+		return 0, 0, errors.New("dataplane: not started")
+	}
+	if err := c.h.enc.Encode(command{Cmd: "stats"}); err != nil {
+		return 0, 0, fmt.Errorf("dataplane: write stats: %w", err)
+	}
+	var rep reply
+	if err := c.h.dec.Decode(&rep); err != nil {
+		return 0, 0, fmt.Errorf("dataplane: stats: %w", err)
+	}
+	if !rep.OK {
+		return 0, 0, errors.New(rep.Error)
+	}
+	return rep.Rx, rep.Tx, nil
 }
 
 // Activate installs the deferred full-tunnel catch-all routes on Windows (two-phase: after

@@ -47,6 +47,8 @@ type command struct {
 type reply struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
+	Rx    int64  `json:"rx,omitempty"`
+	Tx    int64  `json:"tx,omitempty"`
 }
 
 // Run connects to the GUI's control pipe (name from --pipe) and serves the data-plane
@@ -150,6 +152,13 @@ func Run() error {
 				tun.Activate()
 			}
 			_ = enc.Encode(reply{OK: true})
+		case "stats":
+			// Live traffic counters from the wireguard-go device (no sysfs on Windows).
+			var rx, tx int64
+			if tun != nil {
+				rx, tx = tun.Stats()
+			}
+			_ = enc.Encode(reply{OK: true, Rx: rx, Tx: tx})
 		case "wgdown":
 			teardown()
 			_ = enc.Encode(reply{OK: true})

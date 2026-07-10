@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -51,7 +52,7 @@ func (s *ConnectionService) startStatsPoller(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				rx, tx, ok := wgInterfaceStats(wgInterface)
+				rx, tx, ok := s.wgTrafficStats()
 				if !ok {
 					continue
 				}
@@ -115,6 +116,26 @@ func (s *ConnectionService) refreshIPInfoAsync(ctx context.Context) {
 // wgInterfaceStats reads the interface rx/tx byte counters from sysfs. For a
 // WireGuard interface these count the inner (tunneled) traffic: rx = download, tx =
 // upload. Returns ok=false when the interface is absent (not connected).
+// wgTrafficStats reads the tunnel's cumulative rx/tx. On Windows the wintun device lives in
+// the elevated net-helper, so the counters come over the control pipe (dp.Stats); elsewhere
+// the kernel interface exposes them via sysfs.
+func (s *ConnectionService) wgTrafficStats() (rx, tx int64, ok bool) {
+	if runtime.GOOS == "windows" {
+		s.mu.Lock()
+		dp := s.dp
+		s.mu.Unlock()
+		if dp == nil {
+			return 0, 0, false
+		}
+		rx, tx, err := dp.Stats()
+		if err != nil {
+			return 0, 0, false
+		}
+		return rx, tx, true
+	}
+	return wgInterfaceStats(wgInterface)
+}
+
 func wgInterfaceStats(iface string) (rx, tx int64, ok bool) {
 	rx, err1 := readCounter("/sys/class/net/" + iface + "/statistics/rx_bytes")
 	tx, err2 := readCounter("/sys/class/net/" + iface + "/statistics/tx_bytes")
