@@ -28,6 +28,28 @@
           </button>
         </div>
       </SamsungCard>
+
+      <SamsungCard kicker="Информация" class="mt-5">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between py-2 text-left"
+          @click="openOverlay('about')"
+        >
+          <span class="flex flex-col">
+            <span class="text-[17px]">О приложении</span>
+            <span class="mt-0.5 text-sm text-wings-muted">Версия, разработчики, исходный код и лицензии</span>
+          </span>
+          <span class="flex shrink-0 items-center gap-2">
+            <span
+              v-if="updateAvailable"
+              class="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold leading-none text-white"
+            >
+              N
+            </span>
+            <ChevronRight :size="20" class="text-wings-muted" />
+          </span>
+        </button>
+      </SamsungCard>
     </div>
   </div>
 </template>
@@ -41,6 +63,7 @@ import SamsungCard from '@/components/layout/SamsungCard.vue';
 import OneuiSelect from '@/components/controls/OneuiSelect.vue';
 import { confirm } from '@/stores/confirm.js';
 import { openOverlay } from '@/stores/nav.js';
+import { updateAvailable } from '@/stores/update.js';
 
 const subBackendOptions = [
   { value: 'wg', label: 'WireGuard' },
