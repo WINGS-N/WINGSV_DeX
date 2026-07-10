@@ -31,9 +31,10 @@ const cgroupRoot = "/sys/fs/cgroup"
 // whole table is a clean, idempotent teardown. Separate tables so the vkturn and
 // apps marks can be installed and torn down independently.
 const (
-	VkturnNftTable = "wingsv_dex"
-	AppsNftTable   = "wingsv_dex_apps"
-	MasqNftTable   = "wingsv_dex_masq"
+	VkturnNftTable     = "wingsv_dex"
+	AppsNftTable       = "wingsv_dex_apps"
+	MasqNftTable       = "wingsv_dex_masq"
+	BypassMasqNftTable = "wingsv_dex_bypass_masq"
 )
 
 // SetTunnelMasquerade installs (on) or removes (off) a source NAT that rewrites the
@@ -58,6 +59,29 @@ func SetTunnelMasquerade(on bool, ifname string, mark int) error {
 }`, MasqNftTable, ifname, mark)
 	if err := runNftStdin(ruleset); err != nil {
 		return fmt.Errorf("wg: install tunnel masquerade: %w", err)
+	}
+	return nil
+}
+
+// SetBypassMasquerade SNATs fwmark-tagged traffic leaving physIface to that interface's
+// address. In bypass mode the default route is the tunnel, so a bypass app's socket picks
+// the tunnel IP (10.x) as its source; the fwmark then routes it out the physical link where
+// that source is a martian the upstream router drops. Masquerading rewrites it to the
+// physical IP. vkturn's own underlay (already physical-sourced via SO_MARK on the socket) is
+// a no-op here. Whitelist mode uses SetTunnelMasquerade instead (masquerade into the tunnel).
+func SetBypassMasquerade(on bool, physIface string, mark int) error {
+	_ = runNft("delete", "table", "inet", BypassMasqNftTable)
+	if !on || physIface == "" {
+		return nil
+	}
+	ruleset := fmt.Sprintf(`table inet %s {
+	chain postrouting {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "%s" meta mark 0x%x counter masquerade
+	}
+}`, BypassMasqNftTable, physIface, mark)
+	if err := runNftStdin(ruleset); err != nil {
+		return fmt.Errorf("wg: install bypass masquerade: %w", err)
 	}
 	return nil
 }
