@@ -60,15 +60,20 @@ func main() {
 	manager := vktp.NewManager(vkturnBinaryPath(), appControlAddr(configDir), services.ProtectSocket, os.Stderr)
 	vkAuthSvc := services.NewVKAuthService(manager, store, configDir)
 	connectionSvc := services.NewConnectionService(store, manager, vkAuthSvc, exePath)
+	aboutSvc := services.NewAboutService(func() { manager.Stop() })
 
 	app := application.New(application.Options{
-		Name:        "WINGS V Dex",
-		Description: "WINGS V desktop client (VK TURN)",
+		Name:        "WINGS V DeX",
+		Description: "WINGS V DeX desktop client (VK TURN)",
 		Services: []application.Service{
 			application.NewService(services.NewProfilesService(store, func() { connectionSvc.OnSettingsChanged() })),
 			application.NewService(connectionSvc),
 			application.NewService(vkAuthSvc),
 			application.NewService(services.NewAppsService(store, func() { _ = connectionSvc.ApplyAppRouting() })),
+			application.NewService(aboutSvc),
+			application.NewService(services.NewOnboardingService(configDir)),
+			application.NewService(services.NewMusicService()),
+			application.NewService(services.NewAvatarService(configDir)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -88,6 +93,7 @@ func main() {
 		},
 	})
 	connectionSvc.SetApp(app)
+	aboutSvc.SetApp(app)
 
 	// Owns the window and the system tray (show window, connect/disconnect, quit).
 	shell.New(app, shell.Deps{
