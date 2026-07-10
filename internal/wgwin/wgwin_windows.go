@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/netip"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -156,6 +157,36 @@ func (t *Tunnel) Activate() {
 	}
 	t.addRoutesViaNetsh(t.routes)
 	log.Printf("wgwin: activated full tunnel (%d routes)", len(t.routes))
+}
+
+// Stats returns the tunnel's cumulative received/sent bytes, summed over the peer's UAPI
+// transfer counters. The wintun interface has no Linux-style sysfs statistics, so this is
+// how the host app reads live traffic on Windows.
+func (t *Tunnel) Stats() (rx, tx int64) {
+	if t == nil || t.dev == nil {
+		return 0, 0
+	}
+	uapi, err := t.dev.IpcGet()
+	if err != nil {
+		return 0, 0
+	}
+	for _, line := range strings.Split(uapi, "\n") {
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		n, perr := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if perr != nil {
+			continue
+		}
+		switch k {
+		case "rx_bytes":
+			rx += n
+		case "tx_bytes":
+			tx += n
+		}
+	}
+	return rx, tx
 }
 
 // Down tears the interface down: it removes the /32 underlay bypass routes it added on the
