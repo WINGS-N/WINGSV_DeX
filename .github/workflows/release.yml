@@ -64,13 +64,14 @@ jobs:
       - name: Version
         id: v
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-      - name: Package (deb + AppImage + tar)
+      - name: Package (deb + rpm + AppImage + tar)
         env:
           VERSION: ${{ steps.v.outputs.version || '0.0.0' }}
           ARCH: ${{ matrix.arch }}
         run: |
           mkdir -p dist
           nfpm pkg -p deb -f build/linux/nfpm.yaml -t "dist/wingsv-dex_${VERSION:-0.0.0}_${{ matrix.arch }}.deb"
+          nfpm pkg -p rpm -f build/linux/nfpm.yaml -t "dist/wingsv-dex-${VERSION:-0.0.0}.${{ matrix.arch }}.rpm"
           build/linux/appimage/build-appimage.sh ${{ matrix.aiarch }} bin dist
           tar -C bin -czf "dist/wingsv-dex-linux-${{ matrix.arch }}.tar.gz" wingsv-dex vkturn
       - uses: actions/upload-artifact@v4
@@ -152,4 +153,15 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: |
+            artifacts/linux-amd64/*.deb
+            artifacts/linux-arm64/*.deb
+            artifacts/linux-amd64/*.AppImage
+            artifacts/linux-arm64/*.AppImage
+            artifacts/linux-amd64/*.tar.gz
+            artifacts/linux-arm64/*.tar.gz
+            artifacts/windows/wingsv-dex-setup.exe
+            artifacts/windows/wingsv-dex-windows-amd64.zip
+            artifacts/windows/wingsv-dex-windows-arm64.zip
+            artifacts/linux-amd64/*.rpm
+            artifacts/linux-arm64/*.rpm
