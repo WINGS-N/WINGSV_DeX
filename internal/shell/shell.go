@@ -42,7 +42,7 @@ func New(app *application.App, deps Deps) *Controller {
 	c := &Controller{app: app, deps: deps}
 
 	c.win = app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "WINGS V",
+		Title:            "WINGS V DeX",
 		Width:            420,
 		Height:           820,
 		MinWidth:         380,
@@ -67,7 +67,7 @@ func New(app *application.App, deps Deps) *Controller {
 
 	c.tray = app.SystemTray.New()
 	c.tray.SetIcon(iconPNG)
-	c.tray.SetTooltip("WINGS V")
+	c.tray.SetTooltip("WINGS V DeX")
 	c.tray.SetMenu(c.buildMenu())
 
 	// On Windows, clicking the tray icon opens the window as a popover next to the
@@ -156,13 +156,13 @@ func isActive(status string) bool {
 func tooltip(status string) string {
 	switch status {
 	case "connected":
-		return "WINGS V - подключено"
+		return "WINGS V DeX - подключено"
 	case "connecting":
-		return "WINGS V - подключение..."
+		return "WINGS V DeX - подключение..."
 	case "stopping":
-		return "WINGS V - отключение..."
+		return "WINGS V DeX - отключение..."
 	case "error":
-		return "WINGS V - ошибка"
+		return "WINGS V DeX - ошибка"
 	}
-	return "WINGS V - отключено"
+	return "WINGS V DeX - отключено"
 }
