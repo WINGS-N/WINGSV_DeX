@@ -1,6 +1,7 @@
 <template>
   <div ref="rootEl" class="flex h-screen flex-col overflow-clip bg-wings-page font-samsung text-wings-text">
     <VkTurnSettingsView v-if="overlay === 'vkturn-settings'" />
+    <AboutView v-else-if="overlay === 'about'" />
 
     <template v-else>
       <main class="min-h-0 flex-1 overflow-y-auto">
@@ -16,11 +17,19 @@
           :class="tab.id === active ? 'text-wings-accent' : 'text-wings-muted'"
           @click="active = tab.id"
         >
-          <component :is="tab.icon" :size="22" :stroke-width="tab.id === active ? 2.4 : 1.9" />
+          <span class="relative">
+            <component :is="tab.icon" :size="22" :stroke-width="tab.id === active ? 2.4 : 1.9" />
+            <span
+              v-if="tab.id === 'settings' && updateAvailable"
+              class="absolute -right-1.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-wings-page bg-red-500"
+            />
+          </span>
           <span class="text-[11px] font-medium leading-none">{{ tab.label }}</span>
         </button>
       </nav>
     </template>
+
+    <FirstLaunchView v-if="showOnboarding" />
 
     <ConfirmDialog />
     <ToastHost />
@@ -36,9 +45,14 @@ import ProfilesView from '@/views/ProfilesView.vue';
 import AppsView from '@/views/AppsView.vue';
 import SettingsView from '@/views/SettingsView.vue';
 import VkTurnSettingsView from '@/views/VkTurnSettingsView.vue';
+import AboutView from '@/views/AboutView.vue';
 import ConfirmDialog from '@/components/layout/ConfirmDialog.vue';
 import ToastHost from '@/components/layout/ToastHost.vue';
+import FirstLaunchView from '@/views/firstlaunch/FirstLaunchView.vue';
+import { OnboardingService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import { overlay } from '@/stores/nav.js';
+import { showOnboarding, openOnboarding } from '@/stores/onboarding.js';
+import { updateAvailable, startUpdatePolling } from '@/stores/update.js';
 import { showToast } from '@/stores/toast.js';
 
 // Relay field -> human label for patch toasts.
@@ -81,7 +95,13 @@ onBeforeUnmount(() => window.removeEventListener('scroll', pinShell, true));
 // Global toasts: a settings change that forced a reconnect, and a live-patch that
 // could only take effect on the next restart (or failed).
 const offs = [];
-onMounted(() => {
+onMounted(async () => {
+  try {
+    if (!(await OnboardingService.Seen())) openOnboarding();
+  } catch {
+    // backend not available (pure-vite preview) -> skip onboarding
+  }
+  startUpdatePolling();
   offs.push(Events.On('connection:notice', (ev) => showToast(ev?.data?.message, { type: ev?.data?.kind || 'info' })));
   offs.push(
     Events.On('connection:patch', (ev) => {
