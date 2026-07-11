@@ -119,8 +119,8 @@ import { openOverlay } from '@/stores/nav.js';
 import { updateAvailable } from '@/stores/update.js';
 
 const networkBackendOptions = [
-  { value: 'vk_turn', label: 'VK TURN' },
   { value: 'xray', label: 'Xray' },
+  { value: 'vk_turn', label: 'VK TURN' },
 ];
 const subBackendOptions = [
   { value: 'wg', label: 'WireGuard' },
