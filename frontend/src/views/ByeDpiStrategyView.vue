@@ -46,6 +46,7 @@
         </button>
       </div>
     </div>
+    <ScrollTopButton />
   </div>
 </template>
 
@@ -56,6 +57,7 @@ import { Events } from '@wailsio/runtime';
 import { ByeDpiStrategyService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungButton from '@/components/layout/SamsungButton.vue';
 import SamsungSpinner from '@/components/layout/SamsungSpinner.vue';
+import ScrollTopButton from '@/components/layout/ScrollTopButton.vue';
 import { closeOverlay } from '@/stores/nav.js';
 import { showToast } from '@/stores/toast.js';
 import { usePinnedScroll } from '@/composables/usePinnedScroll.js';

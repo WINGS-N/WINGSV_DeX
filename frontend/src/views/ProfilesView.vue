@@ -192,6 +192,7 @@
         </template>
       </div>
     </div>
+    <ScrollTopButton />
   </div>
 </template>
 
@@ -224,6 +225,7 @@ import SamsungCard from '@/components/layout/SamsungCard.vue';
 import SamsungButton from '@/components/layout/SamsungButton.vue';
 import SamsungSectionLoader from '@/components/layout/SamsungSectionLoader.vue';
 import SamsungSpinner from '@/components/layout/SamsungSpinner.vue';
+import ScrollTopButton from '@/components/layout/ScrollTopButton.vue';
 
 const profiles = ref([]);
 const activeId = ref('');

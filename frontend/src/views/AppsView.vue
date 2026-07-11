@@ -62,6 +62,7 @@
 
       <p v-if="error" class="mt-4 text-sm text-wings-danger">{{ error }}</p>
     </div>
+    <ScrollTopButton />
   </div>
 </template>
 
@@ -73,6 +74,7 @@ import AppHeader from '@/components/layout/AppHeader.vue';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
 import SamsungPill from '@/components/layout/SamsungPill.vue';
 import SamsungSectionLoader from '@/components/layout/SamsungSectionLoader.vue';
+import ScrollTopButton from '@/components/layout/ScrollTopButton.vue';
 import OneuiInput from '@/components/controls/OneuiInput.vue';
 import OneuiSwitch from '@/components/controls/OneuiSwitch.vue';
 import OneuiRadioGroup from '@/components/controls/OneuiRadioGroup.vue';
