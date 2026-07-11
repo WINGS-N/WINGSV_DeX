@@ -266,6 +266,15 @@ func installRouting(cfg Config, link netlink.Link) error {
 		if err := os.WriteFile("/proc/sys/net/ipv4/conf/"+link.Attrs().Name+"/rp_filter", []byte("2"), 0o644); err != nil {
 			return fmt.Errorf("wg: set loose rp_filter: %w", err)
 		}
+		// Bypass mode: the default route is the tunnel, so replies to bypass apps come
+		// back on the physical link while their reverse route points at the tunnel -
+		// strict rp_filter on the physical link would drop them. Loosen it there too (the
+		// mirror of the tunnel-iface case above). Best-effort: do not fail the connect.
+		if !cfg.Whitelist {
+			if phys := PhysicalEgressIface(); phys != "" {
+				_ = os.WriteFile("/proc/sys/net/ipv4/conf/"+phys+"/rp_filter", []byte("2"), 0o644)
+			}
+		}
 		if err := addFamilyRouting(cfg, link, netlink.FAMILY_V4, "0.0.0.0/0"); err != nil {
 			return err
 		}
