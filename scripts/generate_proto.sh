@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generates the Go proto stubs WINGSV_Dex needs:
+# Generates the Go proto stubs WINGSV_DeX needs:
 #   wingsvpb     - the wingsv:// config schema (messages only) for the link codec.
 #   appcontrolpb - the local AppControl IPC (messages + gRPC) to drive the vkturn child.
 #
