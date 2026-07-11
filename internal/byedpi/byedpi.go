@@ -186,6 +186,9 @@ func hasFlag(tokens []string, short, long string) bool {
 	return false
 }
 
+// Tokenize splits a raw ciadpi argument line into argv tokens (whitespace, simple quotes).
+func Tokenize(s string) []string { return tokenize(s) }
+
 // tokenize splits a raw command string on whitespace, honoring simple double quotes.
 func tokenize(s string) []string {
 	var out []string
