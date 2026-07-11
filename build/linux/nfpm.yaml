@@ -1,5 +1,5 @@
 # nfpm config for the Linux .deb (build with: VERSION=x.y.z nfpm pkg -p deb -f build/linux/nfpm.yaml -t dist/).
-# nfpm builds .deb/.rpm without dpkg, so it runs on any host and in CI.
+# nfpm builds the .deb without dpkg, so it runs on any host and in CI.
 name: wingsv-dex
 arch: ${ARCH}
 platform: linux
