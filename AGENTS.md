@@ -1,12 +1,12 @@
 # AGENTS.md
 
-Working guide for AI agents in the WINGSV_Dex repository. Read this first. When a rule is marked
+Working guide for AI agents in the WINGSV_DeX repository. Read this first. When a rule is marked
 HARD RULE or MANDATORY, follow it exactly - the user has corrected these before in the sibling
 WINGS V repo.
 
 ## 1. What this is
 
-WINGSV_Dex is the Linux desktop port of the WINGS V Android VPN client, built with Wails v3
+WINGSV_DeX is the Linux desktop port of the WINGS V Android VPN client, built with Wails v3
 (Go backend + Vue 3 frontend, system WebKitGTK). The MVP targets ONLY the VK TURN + WireGuard
 mode. Feature scope: read wingsv:// links, profiles, WG auto-provision, and a VK TURN settings
 screen that mirrors the Android app (same switches/dropdowns and the same default values).

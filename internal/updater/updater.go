@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	repo         = "WINGS-N/WINGSV_Dex"
+	repo         = "WINGS-N/WINGSV_DeX"
 	releasesAPI  = "https://api.github.com/repos/" + repo + "/releases/latest"
 	ReleasesPage = "https://github.com/WINGS-N/WINGSV_DeX/releases"
 )
