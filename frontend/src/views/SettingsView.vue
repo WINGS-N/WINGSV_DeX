@@ -35,6 +35,17 @@
               </span>
               <ChevronRight :size="20" class="shrink-0 text-wings-muted" />
             </button>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between py-3.5 text-left"
+              @click="openOverlay('byedpi-settings')"
+            >
+              <span class="flex flex-col">
+                <span class="text-[17px]">ByeDPI</span>
+                <span class="mt-0.5 text-sm text-wings-muted">Локальный обход DPI перед Xray</span>
+              </span>
+              <ChevronRight :size="20" class="shrink-0 text-wings-muted" />
+            </button>
           </template>
 
           <template v-else>
