@@ -5,43 +5,93 @@ import (
 	"strings"
 )
 
-// ByeDPISettings configures the ByeDPI (ciadpi) local SOCKS proxy that xray can chain its
-// outbound through as a DPI-bypass front. Fields and defaults follow the app's ByeDPI
-// preferences.
-type ByeDPISettings struct {
-	Enabled        bool   `json:"enabled"`     // run ByeDPI and chain the xray outbound through it
-	ProxyIP        string `json:"proxyIp"`     // local listen address
-	ProxyPort      int    `json:"proxyPort"`   // local listen port
-	AuthEnabled    bool   `json:"authEnabled"` // protect the local SOCKS with a login/password
-	Username       string `json:"username"`
-	Password       string `json:"password"`
-	MaxConnections int    `json:"maxConnections"`
-	BufferSize     int    `json:"bufferSize"`
-	NoDomain       bool   `json:"noDomain"`
-	TCPFastOpen    bool   `json:"tcpFastOpen"`
-	DefaultTTL     int    `json:"defaultTtl"`
-	DesyncMethod   string `json:"desyncMethod"` // oob | split | disorder | disoob | fake | auto
-	SplitPosition  int    `json:"splitPosition"`
-	FakeTTL        int    `json:"fakeTtl"`
+// DefaultByeDPICommand is the preset ciadpi argument line used when command mode is on.
+const DefaultByeDPICommand = "-o1 -d1 -a1 -At,r,s -s1 -d1 -s5+s -s10+s -s15+s -s20+s -r1+s -S -a1 -As -s1 -d1 -s5+s -s10+s -s15+s -s20+s -S -a1"
 
-	// UseCommandSettings replaces the structured flags above with a raw argv line, for
-	// power users who want to pass ciadpi options verbatim.
-	UseCommandSettings bool   `json:"useCommandSettings"`
-	Command            string `json:"command"`
+// ByeDPISettings configures the ByeDPI (ciadpi) local SOCKS proxy that xray can chain its
+// outbound through as a DPI-bypass front.
+type ByeDPISettings struct {
+	Enabled            bool   `json:"enabled"`            // run ByeDPI and chain the xray outbound through it
+	UseCommandSettings bool   `json:"useCommandSettings"` // use the raw command line instead of the editor fields
+	Command            string `json:"command"`            // raw ciadpi argument line (command mode)
+
+	ProxyIP     string `json:"proxyIp"`
+	ProxyPort   int    `json:"proxyPort"`
+	AuthEnabled bool   `json:"authEnabled"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+
+	MaxConnections int  `json:"maxConnections"`
+	BufferSize     int  `json:"bufferSize"`
+	DefaultTTL     int  `json:"defaultTtl"`
+	NoDomain       bool `json:"noDomain"`
+	TCPFastOpen    bool `json:"tcpFastOpen"`
+	DropSACK       bool `json:"dropSack"`
+
+	DesyncHTTP  bool `json:"desyncHttp"`
+	DesyncHTTPS bool `json:"desyncHttps"`
+	DesyncUDP   bool `json:"desyncUdp"`
+
+	DesyncMethod  string `json:"desyncMethod"` // none | split | disorder | fake | oob | disoob
+	SplitPosition int    `json:"splitPosition"`
+	SplitAtHost   bool   `json:"splitAtHost"`
+	FakeTTL       int    `json:"fakeTtl"`
+	FakeSNI       string `json:"fakeSni"`
+	FakeOffset    int    `json:"fakeOffset"`
+	OOBData       string `json:"oobData"`
+	UDPFakeCount  int    `json:"udpFakeCount"`
+
+	HostMixedCase    bool `json:"hostMixedCase"`
+	DomainMixedCase  bool `json:"domainMixedCase"`
+	HostRemoveSpaces bool `json:"hostRemoveSpaces"`
+
+	TLSRecordSplit         bool `json:"tlsRecordSplit"`
+	TLSRecordSplitPosition int  `json:"tlsRecordSplitPosition"`
+	TLSRecordSplitAtSNI    bool `json:"tlsRecordSplitAtSni"`
+
+	HostsMode      string `json:"hostsMode"` // disable | blacklist | whitelist
+	HostsBlacklist string `json:"hostsBlacklist"`
+	HostsWhitelist string `json:"hostsWhitelist"`
+
+	// Strategy finder (proxytest) parameters.
+	ProxyTestDelaySeconds        int    `json:"proxyTestDelaySeconds"`
+	ProxyTestRequests            int    `json:"proxyTestRequests"`
+	ProxyTestConcurrencyLimit    int    `json:"proxyTestConcurrencyLimit"`
+	ProxyTestTimeoutSeconds      int    `json:"proxyTestTimeoutSeconds"`
+	ProxyTestSNI                 string `json:"proxyTestSni"`
+	ProxyTestUseCustomStrategies bool   `json:"proxyTestUseCustomStrategies"`
+	ProxyTestCustomStrategies    string `json:"proxyTestCustomStrategies"`
 }
 
 // DefaultByeDPISettings returns the ByeDPI defaults.
 func DefaultByeDPISettings() ByeDPISettings {
 	return ByeDPISettings{
-		ProxyIP:        "127.0.0.1",
-		ProxyPort:      1080,
-		AuthEnabled:    true,
-		MaxConnections: 512,
-		BufferSize:     16384,
-		DefaultTTL:     0,
-		DesyncMethod:   "oob",
-		SplitPosition:  1,
-		FakeTTL:        8,
+		Command:                DefaultByeDPICommand,
+		ProxyIP:                "127.0.0.1",
+		ProxyPort:              1080,
+		AuthEnabled:            true,
+		MaxConnections:         512,
+		BufferSize:             16384,
+		DefaultTTL:             0,
+		DesyncHTTP:             true,
+		DesyncHTTPS:            true,
+		DesyncUDP:              true,
+		DesyncMethod:           "oob",
+		SplitPosition:          1,
+		FakeTTL:                8,
+		FakeSNI:                "www.iana.org",
+		OOBData:                "a",
+		UDPFakeCount:           1,
+		TLSRecordSplit:         true,
+		TLSRecordSplitPosition: 1,
+		TLSRecordSplitAtSNI:    true,
+		HostsMode:              "disable",
+
+		ProxyTestDelaySeconds:     1,
+		ProxyTestRequests:         1,
+		ProxyTestConcurrencyLimit: 20,
+		ProxyTestTimeoutSeconds:   5,
+		ProxyTestSNI:              "max.ru",
 	}
 }
 
@@ -71,11 +121,43 @@ func (b ByeDPISettings) withDefaults() ByeDPISettings {
 	if b.FakeTTL == 0 {
 		b.FakeTTL = d.FakeTTL
 	}
+	if b.FakeSNI == "" {
+		b.FakeSNI = d.FakeSNI
+	}
+	if b.OOBData == "" {
+		b.OOBData = d.OOBData
+	}
+	if b.UDPFakeCount == 0 {
+		b.UDPFakeCount = d.UDPFakeCount
+	}
+	if b.TLSRecordSplitPosition == 0 {
+		b.TLSRecordSplitPosition = d.TLSRecordSplitPosition
+	}
+	if b.HostsMode == "" {
+		b.HostsMode = d.HostsMode
+	}
+	if b.Command == "" {
+		b.Command = d.Command
+	}
+	if b.ProxyTestDelaySeconds == 0 {
+		b.ProxyTestDelaySeconds = d.ProxyTestDelaySeconds
+	}
+	if b.ProxyTestRequests == 0 {
+		b.ProxyTestRequests = d.ProxyTestRequests
+	}
+	if b.ProxyTestConcurrencyLimit == 0 {
+		b.ProxyTestConcurrencyLimit = d.ProxyTestConcurrencyLimit
+	}
+	if b.ProxyTestTimeoutSeconds == 0 {
+		b.ProxyTestTimeoutSeconds = d.ProxyTestTimeoutSeconds
+	}
+	if b.ProxyTestSNI == "" {
+		b.ProxyTestSNI = d.ProxyTestSNI
+	}
 	return b
 }
 
-// ensureCreds generates a login/password once when auth is enabled, like the xray local
-// proxy. Returns true if anything was generated.
+// ensureCreds generates a login/password once when auth is enabled.
 func (b *ByeDPISettings) ensureCreds() bool {
 	if !b.AuthEnabled {
 		return false

@@ -6,50 +6,184 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 
 	"github.com/WINGS-N/wingsv-dex/internal/config"
 )
 
-// desyncFlag maps a desync method name to the ciadpi flag that takes the split position.
-var desyncFlag = map[string]string{
-	"split":    "--split",
-	"disorder": "--disorder",
-	"oob":      "--oob",
-	"disoob":   "--disoob",
-	"fake":     "--fake",
-}
+// connBindIP is the source IP ciadpi binds its upstream connections to.
+const connBindIP = "0.0.0.0"
 
-// Args builds the ciadpi argument list for the given settings. When UseCommandSettings is
-// set, the raw command tokens are used verbatim (after the fixed ip/port), letting power
-// users pass ciadpi options directly.
+// Args builds the ciadpi argument list for the given settings. Command mode passes the raw
+// argument line through (prefixing the listen ip/port when absent); the editor mode maps the
+// structured desync fields to concatenated short flags.
 func Args(b config.ByeDPISettings) []string {
 	b = b.Normalized()
-	args := []string{"--ip", b.ProxyIP, "--port", strconv.Itoa(b.ProxyPort)}
-	if b.AuthEnabled && b.Username != "" {
-		args = append(args, "--socks-user", b.Username, "--socks-pass", b.Password)
-	}
 	if b.UseCommandSettings {
-		return append(args, tokenize(b.Command)...)
+		return commandArgs(b)
 	}
-	args = append(args, "--max-conn", strconv.Itoa(b.MaxConnections), "--buf-size", strconv.Itoa(b.BufferSize))
+	return editorArgs(b)
+}
+
+func commandArgs(b config.ByeDPISettings) []string {
+	tokens := tokenize(b.Command)
+	var a []string
+	if !hasFlag(tokens, "-i", "--ip") {
+		a = append(a, "--ip", b.ProxyIP)
+	}
+	if !hasFlag(tokens, "-p", "--port") {
+		a = append(a, "--port", strconv.Itoa(b.ProxyPort))
+	}
+	a = append(a, "--conn-ip", connBindIP)
+	a = append(a, tokens...)
+	return appendAuth(a, b)
+}
+
+func editorArgs(b config.ByeDPISettings) []string {
+	a := []string{"-i" + b.ProxyIP, "-p" + strconv.Itoa(b.ProxyPort), "-I" + connBindIP}
+	if b.MaxConnections > 0 {
+		a = append(a, "-c"+strconv.Itoa(b.MaxConnections))
+	}
+	if b.BufferSize > 0 {
+		a = append(a, "-b"+strconv.Itoa(b.BufferSize))
+	}
+
+	var protocols []string
+	if b.DesyncHTTPS {
+		protocols = append(protocols, "t")
+	}
+	if b.DesyncHTTP {
+		protocols = append(protocols, "h")
+	}
+	protoArg := func() { a = append(a, "-K"+strings.Join(protocols, ",")) }
+
+	hosts := ""
+	switch b.HostsMode {
+	case "blacklist":
+		hosts = strings.TrimSpace(b.HostsBlacklist)
+	case "whitelist":
+		hosts = strings.TrimSpace(b.HostsWhitelist)
+	}
+	if hosts != "" {
+		hostArg := "-H:" + strings.ReplaceAll(hosts, "\n", " ")
+		if b.HostsMode == "blacklist" {
+			a = append(a, hostArg, "-An")
+			if len(protocols) > 0 {
+				protoArg()
+			}
+		} else {
+			if len(protocols) > 0 {
+				protoArg()
+			}
+			a = append(a, hostArg)
+		}
+	} else if len(protocols) > 0 {
+		protoArg()
+	}
+
+	if b.DefaultTTL != 0 {
+		a = append(a, "-g"+strconv.Itoa(b.DefaultTTL))
+	}
 	if b.NoDomain {
-		args = append(args, "--no-domain")
+		a = append(a, "-N")
+	}
+
+	if b.SplitPosition != 0 {
+		pos := strconv.Itoa(b.SplitPosition)
+		if b.SplitAtHost {
+			pos += "+h"
+		}
+		switch b.DesyncMethod {
+		case "split":
+			a = append(a, "-s"+pos)
+		case "disorder":
+			a = append(a, "-d"+pos)
+		case "oob":
+			a = append(a, "-o"+pos)
+		case "disoob":
+			a = append(a, "-q"+pos)
+		case "fake":
+			a = append(a, "-f"+pos)
+		}
+	}
+
+	if b.DesyncMethod == "fake" {
+		if b.FakeTTL != 0 {
+			a = append(a, "-t"+strconv.Itoa(b.FakeTTL))
+		}
+		if sni := strings.TrimSpace(b.FakeSNI); sni != "" {
+			a = append(a, "-n"+sni)
+		}
+		if b.FakeOffset != 0 {
+			a = append(a, "-O"+strconv.Itoa(b.FakeOffset))
+		}
+	}
+	if b.DesyncMethod == "oob" || b.DesyncMethod == "disoob" {
+		oob := strings.TrimSpace(b.OOBData)
+		if oob == "" {
+			oob = "a"
+		}
+		// ciadpi takes the OOB byte value, not the character.
+		a = append(a, "-e"+strconv.Itoa(int(oob[0])))
+	}
+
+	var mods []string
+	if b.HostMixedCase {
+		mods = append(mods, "h")
+	}
+	if b.DomainMixedCase {
+		mods = append(mods, "d")
+	}
+	if b.HostRemoveSpaces {
+		mods = append(mods, "r")
+	}
+	if len(mods) > 0 {
+		a = append(a, "-M"+strings.Join(mods, ","))
+	}
+
+	if b.TLSRecordSplit && b.TLSRecordSplitPosition != 0 {
+		r := "-r" + strconv.Itoa(b.TLSRecordSplitPosition)
+		if b.TLSRecordSplitAtSNI {
+			r += "+s"
+		}
+		a = append(a, r)
 	}
 	if b.TCPFastOpen {
-		args = append(args, "--tfo")
+		a = append(a, "-F")
 	}
-	if b.DefaultTTL > 0 {
-		args = append(args, "--def-ttl", strconv.Itoa(b.DefaultTTL))
+	if b.DropSACK {
+		a = append(a, "-Y")
 	}
-	if flag, ok := desyncFlag[b.DesyncMethod]; ok {
-		args = append(args, flag, strconv.Itoa(b.SplitPosition))
-		if b.DesyncMethod == "fake" {
-			args = append(args, "--ttl", strconv.Itoa(b.FakeTTL))
+	a = append(a, "-An")
+	if b.DesyncUDP {
+		a = append(a, "-Ku")
+		if b.UDPFakeCount > 0 {
+			a = append(a, "-a"+strconv.Itoa(b.UDPFakeCount))
 		}
-	} else if b.DesyncMethod == "auto" {
-		args = append(args, "--auto", "torst")
+		a = append(a, "-An")
 	}
-	return args
+	return appendAuth(a, b)
+}
+
+func appendAuth(a []string, b config.ByeDPISettings) []string {
+	if b.AuthEnabled {
+		if b.Username != "" {
+			a = append(a, "--socks-user", b.Username)
+		}
+		if b.Password != "" {
+			a = append(a, "--socks-pass", b.Password)
+		}
+	}
+	return a
+}
+
+func hasFlag(tokens []string, short, long string) bool {
+	for _, t := range tokens {
+		if t == short || t == long || strings.HasPrefix(t, short) {
+			return true
+		}
+	}
+	return false
 }
 
 // tokenize splits a raw command string on whitespace, honoring simple double quotes.
@@ -67,7 +201,7 @@ func tokenize(s string) []string {
 		switch {
 		case r == '"':
 			inQuote = !inQuote
-		case (r == ' ' || r == '\t') && !inQuote:
+		case (r == ' ' || r == '\t' || r == '\n') && !inQuote:
 			flush()
 		default:
 			cur = append(cur, r)

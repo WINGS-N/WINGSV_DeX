@@ -78,8 +78,12 @@ func NewStore(path string) (*Store, error) {
 		s.data.XraySettings.ensureCreds()
 		migrated = true
 	}
-	if s.data.ByeDPISettings.ProxyIP == "" {
+	// ProxyIP empty = never written; Command empty = written by an earlier, smaller model
+	// that lacked the full desync editor - reseed either way (preserving the proxy creds).
+	if s.data.ByeDPISettings.ProxyIP == "" || s.data.ByeDPISettings.Command == "" {
+		user, pass := s.data.ByeDPISettings.Username, s.data.ByeDPISettings.Password
 		s.data.ByeDPISettings = DefaultByeDPISettings()
+		s.data.ByeDPISettings.Username, s.data.ByeDPISettings.Password = user, pass
 		s.data.ByeDPISettings.ensureCreds()
 		migrated = true
 	}
