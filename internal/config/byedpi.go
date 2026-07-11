@@ -61,7 +61,11 @@ type ByeDPISettings struct {
 	ProxyTestSNI                 string `json:"proxyTestSni"`
 	ProxyTestUseCustomStrategies bool   `json:"proxyTestUseCustomStrategies"`
 	ProxyTestCustomStrategies    string `json:"proxyTestCustomStrategies"`
+	ProxyTestTargets             string `json:"proxyTestTargets"` // newline-separated domains to probe
 }
+
+// DefaultByeDPITargets is the built-in list of domains the strategy finder probes.
+const DefaultByeDPITargets = "youtube.com\nwww.youtube.com\ngooglevideo.com\ndiscord.com\nx.com"
 
 // DefaultByeDPISettings returns the ByeDPI defaults.
 func DefaultByeDPISettings() ByeDPISettings {
@@ -92,6 +96,7 @@ func DefaultByeDPISettings() ByeDPISettings {
 		ProxyTestConcurrencyLimit: 20,
 		ProxyTestTimeoutSeconds:   5,
 		ProxyTestSNI:              "max.ru",
+		ProxyTestTargets:          DefaultByeDPITargets,
 	}
 }
 
@@ -153,6 +158,9 @@ func (b ByeDPISettings) withDefaults() ByeDPISettings {
 	}
 	if b.ProxyTestSNI == "" {
 		b.ProxyTestSNI = d.ProxyTestSNI
+	}
+	if b.ProxyTestTargets == "" {
+		b.ProxyTestTargets = d.ProxyTestTargets
 	}
 	return b
 }
