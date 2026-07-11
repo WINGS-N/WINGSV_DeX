@@ -24,6 +24,17 @@
               </span>
               <ChevronRight :size="20" class="shrink-0 text-wings-muted" />
             </button>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between py-3.5 text-left"
+              @click="openOverlay('subscriptions')"
+            >
+              <span class="flex flex-col">
+                <span class="text-[17px]">Подписки</span>
+                <span class="mt-0.5 text-sm text-wings-muted">Обновление узлов и автообновление</span>
+              </span>
+              <ChevronRight :size="20" class="shrink-0 text-wings-muted" />
+            </button>
           </template>
 
           <template v-else>
