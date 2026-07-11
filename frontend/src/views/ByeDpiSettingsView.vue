@@ -1,5 +1,5 @@
 <template>
-  <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+  <div ref="rootEl" class="flex min-h-0 flex-1 flex-col overflow-hidden">
     <header class="flex shrink-0 items-center gap-2 px-3 pb-3 pt-6">
       <button
         type="button"
@@ -112,6 +112,9 @@ import OneuiSelect from '@/components/controls/OneuiSelect.vue';
 import OneuiInput from '@/components/controls/OneuiInput.vue';
 import SwitchRow from '@/components/layout/SwitchRow.vue';
 import { closeOverlay } from '@/stores/nav.js';
+import { usePinnedScroll } from '@/composables/usePinnedScroll.js';
+
+const rootEl = usePinnedScroll();
 
 const desyncOptions = [
   { value: 'oob', label: 'OOB' },

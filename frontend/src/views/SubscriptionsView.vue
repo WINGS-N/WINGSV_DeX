@@ -1,5 +1,5 @@
 <template>
-  <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+  <div ref="rootEl" class="flex min-h-0 flex-1 flex-col overflow-hidden">
     <header class="flex shrink-0 items-center gap-2 px-3 pb-3 pt-6">
       <button
         type="button"
@@ -97,6 +97,9 @@ import OneuiInput from '@/components/controls/OneuiInput.vue';
 import OneuiSwitch from '@/components/controls/OneuiSwitch.vue';
 import { closeOverlay } from '@/stores/nav.js';
 import { showToast } from '@/stores/toast.js';
+import { usePinnedScroll } from '@/composables/usePinnedScroll.js';
+
+const rootEl = usePinnedScroll();
 
 const subs = ref([]);
 const newTitle = ref('');
