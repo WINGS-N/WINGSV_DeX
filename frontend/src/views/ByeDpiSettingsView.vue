@@ -24,7 +24,7 @@
           <SwitchRow
             v-if="form.enabled"
             title="Ручная команда"
-            subtitle="Задавать аргументы ciadpi строкой вместо редактора"
+            subtitle="Задавать аргументы ciadpi строкой вместо редактора шагов"
             v-model="form.useCommandSettings"
             @update:model-value="save"
           />
@@ -62,147 +62,49 @@
           </button>
         </SamsungCard>
 
-        <template v-else>
-          <SamsungCard kicker="Обход" class="mt-5">
-            <div class="divide-y divide-wings-divider">
-              <OneuiSelect
-                label="Метод десинхронизации"
-                v-model="form.desyncMethod"
-                :options="desyncOptions"
-                @update:model-value="save"
+        <SamsungCard v-else kicker="Стратегия (шаги)" class="mt-5">
+          <p class="mb-2 text-sm text-wings-muted">
+            Шаги собираются в команду ciadpi по порядку. Каждый шаг - опция и её значение.
+          </p>
+          <div class="flex flex-col gap-2">
+            <div v-for="(step, i) in form.desyncSteps" :key="i" class="flex items-center gap-2">
+              <select
+                v-model="step.flag"
+                class="w-[46%] shrink-0 rounded-xl border border-wings-divider bg-wings-input px-2 py-2 text-[13px] text-wings-text outline-none focus:border-wings-inputLine"
+                @change="save"
+              >
+                <option v-for="opt in flagOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+              <input
+                v-model="step.value"
+                spellcheck="false"
+                :placeholder="valuePlaceholder(step.flag)"
+                class="min-w-0 flex-1 rounded-xl border border-wings-divider bg-wings-input px-3 py-2 font-mono text-[13px] text-wings-text outline-none focus:border-wings-inputLine"
+                @input="saveDebounced"
               />
-              <template v-if="form.desyncMethod !== 'none'">
-                <OneuiInput
-                  label="Позиция разбиения"
-                  type="number"
-                  v-model="form.splitPosition"
-                  @update:model-value="saveDebounced"
-                />
-                <SwitchRow title="Разбивать по хосту" v-model="form.splitAtHost" @update:model-value="save" />
-              </template>
-              <template v-if="form.desyncMethod === 'fake'">
-                <OneuiInput
-                  label="TTL фейка"
-                  type="number"
-                  v-model="form.fakeTtl"
-                  @update:model-value="saveDebounced"
-                />
-                <OneuiInput label="SNI фейка" v-model="form.fakeSni" @update:model-value="saveDebounced" />
-                <OneuiInput
-                  label="Смещение фейка"
-                  type="number"
-                  v-model="form.fakeOffset"
-                  @update:model-value="saveDebounced"
-                />
-              </template>
-              <OneuiInput
-                v-if="form.desyncMethod === 'oob' || form.desyncMethod === 'disoob'"
-                label="OOB-данные"
-                v-model="form.oobData"
-                @update:model-value="saveDebounced"
-              />
+              <button
+                type="button"
+                aria-label="Удалить шаг"
+                class="shrink-0 p-1 text-wings-muted hover:text-wings-danger"
+                @click="removeStep(i)"
+              >
+                <Trash2 :size="18" />
+              </button>
             </div>
-          </SamsungCard>
+          </div>
 
-          <SamsungCard kicker="Протоколы" class="mt-5">
-            <div class="divide-y divide-wings-divider">
-              <SwitchRow title="Обход HTTPS (TLS)" v-model="form.desyncHttps" @update:model-value="save" />
-              <SwitchRow title="Обход HTTP" v-model="form.desyncHttp" @update:model-value="save" />
-              <SwitchRow title="Обход UDP (QUIC)" v-model="form.desyncUdp" @update:model-value="save" />
-              <OneuiInput
-                v-if="form.desyncUdp"
-                label="Фейков UDP"
-                type="number"
-                v-model="form.udpFakeCount"
-                @update:model-value="saveDebounced"
-              />
-            </div>
-          </SamsungCard>
+          <div class="mt-3 flex items-center gap-3">
+            <SamsungButton variant="secondary" @click="addStep">Добавить шаг</SamsungButton>
+            <button type="button" class="text-[13px] text-wings-accent" @click="resetSteps">
+              Сбросить к рекомендуемой
+            </button>
+          </div>
 
-          <SamsungCard kicker="TLS-запись" class="mt-5">
-            <div class="divide-y divide-wings-divider">
-              <SwitchRow title="Разбивать TLS-запись" v-model="form.tlsRecordSplit" @update:model-value="save" />
-              <template v-if="form.tlsRecordSplit">
-                <OneuiInput
-                  label="Позиция"
-                  type="number"
-                  v-model="form.tlsRecordSplitPosition"
-                  @update:model-value="saveDebounced"
-                />
-                <SwitchRow title="По SNI" v-model="form.tlsRecordSplitAtSni" @update:model-value="save" />
-              </template>
-            </div>
-          </SamsungCard>
-
-          <SamsungCard kicker="Модификация HTTP" class="mt-5">
-            <div class="divide-y divide-wings-divider">
-              <SwitchRow title="Смешанный регистр Host" v-model="form.hostMixedCase" @update:model-value="save" />
-              <SwitchRow title="Смешанный регистр домена" v-model="form.domainMixedCase" @update:model-value="save" />
-              <SwitchRow
-                title="Убирать пробелы в заголовке"
-                v-model="form.hostRemoveSpaces"
-                @update:model-value="save"
-              />
-            </div>
-          </SamsungCard>
-
-          <SamsungCard kicker="Хосты" class="mt-5">
-            <div class="divide-y divide-wings-divider">
-              <OneuiSelect
-                label="Режим списка"
-                v-model="form.hostsMode"
-                :options="hostsModeOptions"
-                @update:model-value="save"
-              />
-              <div v-if="form.hostsMode === 'blacklist'" class="py-3">
-                <p class="mb-1 text-sm text-wings-muted">Чёрный список (по одному хосту на строку)</p>
-                <textarea
-                  v-model="form.hostsBlacklist"
-                  rows="3"
-                  spellcheck="false"
-                  class="w-full resize-none rounded-xl border border-wings-divider bg-wings-input px-3 py-2 font-mono text-[13px] text-wings-text outline-none focus:border-wings-inputLine"
-                  @input="saveDebounced"
-                ></textarea>
-              </div>
-              <div v-else-if="form.hostsMode === 'whitelist'" class="py-3">
-                <p class="mb-1 text-sm text-wings-muted">Белый список (по одному хосту на строку)</p>
-                <textarea
-                  v-model="form.hostsWhitelist"
-                  rows="3"
-                  spellcheck="false"
-                  class="w-full resize-none rounded-xl border border-wings-divider bg-wings-input px-3 py-2 font-mono text-[13px] text-wings-text outline-none focus:border-wings-inputLine"
-                  @input="saveDebounced"
-                ></textarea>
-              </div>
-            </div>
-          </SamsungCard>
-
-          <SamsungCard kicker="Дополнительно" class="mt-5">
-            <div class="divide-y divide-wings-divider">
-              <OneuiInput
-                label="TTL по умолчанию (0 - выкл)"
-                type="number"
-                v-model="form.defaultTtl"
-                @update:model-value="saveDebounced"
-              />
-              <SwitchRow title="Запрет резолва доменов" v-model="form.noDomain" @update:model-value="save" />
-              <OneuiInput
-                label="Лимит соединений"
-                type="number"
-                v-model="form.maxConnections"
-                @update:model-value="saveDebounced"
-              />
-              <OneuiInput
-                label="Размер буфера"
-                type="number"
-                v-model="form.bufferSize"
-                @update:model-value="saveDebounced"
-              />
-              <SwitchRow title="TCP Fast Open" v-model="form.tcpFastOpen" @update:model-value="save" />
-              <SwitchRow title="Отбрасывать SACK" v-model="form.dropSack" @update:model-value="save" />
-            </div>
-          </SamsungCard>
-        </template>
+          <div class="mt-4 rounded-xl border border-wings-divider bg-wings-input px-3 py-2">
+            <p class="mb-1 text-[12px] uppercase tracking-[0.12em] text-wings-kicker">Итоговая команда</p>
+            <p class="break-words font-mono text-[12px] text-wings-muted">{{ preview }}</p>
+          </div>
+        </SamsungCard>
 
         <SamsungCard kicker="Подбор стратегий" class="mt-5">
           <div class="divide-y divide-wings-divider">
@@ -263,11 +165,11 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, reactive } from 'vue';
-import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, reactive } from 'vue';
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-vue-next';
 import { ProfilesService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
-import OneuiSelect from '@/components/controls/OneuiSelect.vue';
+import SamsungButton from '@/components/layout/SamsungButton.vue';
 import OneuiInput from '@/components/controls/OneuiInput.vue';
 import SwitchRow from '@/components/layout/SwitchRow.vue';
 import { closeOverlay, openOverlay } from '@/stores/nav.js';
@@ -279,19 +181,47 @@ const rootEl = usePinnedScroll();
 const DEFAULT_COMMAND =
   '-o1 -d1 -a1 -At,r,s -s1 -d1 -s5+s -s10+s -s15+s -s20+s -r1+s -S -a1 -As -s1 -d1 -s5+s -s10+s -s15+s -s20+s -S -a1';
 
-const desyncOptions = [
-  { value: 'none', label: 'Нет' },
-  { value: 'split', label: 'Split' },
-  { value: 'disorder', label: 'Disorder' },
-  { value: 'fake', label: 'Fake' },
-  { value: 'oob', label: 'OOB' },
-  { value: 'disoob', label: 'Disorder OOB' },
+// Every meaningful ciadpi option, exposed as a step flag with a friendly label. The
+// connection flags (-i/-p/-I) and SOCKS auth are managed above, and the daemon/pidfile/
+// transparent/debug flags are irrelevant to a foreground child, so they are omitted here;
+// anything still needed can be typed in full in command mode.
+const flagOptions = [
+  { value: '-s', label: 'Split (-s)' },
+  { value: '-d', label: 'Disorder (-d)' },
+  { value: '-o', label: 'OOB (-o)' },
+  { value: '-q', label: 'Disorder OOB (-q)' },
+  { value: '-f', label: 'Fake (-f)' },
+  { value: '-r', label: 'TLS-запись (-r)' },
+  { value: '-A', label: 'Auto (-A)' },
+  { value: '-L', label: 'Auto-режим (-L)' },
+  { value: '-a', label: 'UDP-фейки (-a)' },
+  { value: '-S', label: 'MD5-подпись (-S)' },
+  { value: '-e', label: 'OOB-данные (-e)' },
+  { value: '-t', label: 'TTL фейка (-t)' },
+  { value: '-n', label: 'SNI фейка (-n)' },
+  { value: '-O', label: 'Смещение фейка (-O)' },
+  { value: '-l', label: 'Фейк-данные (-l)' },
+  { value: '-Q', label: 'Мод фейк-TLS (-Q)' },
+  { value: '-M', label: 'Мод HTTP (-M)' },
+  { value: '-m', label: 'Минор TLS (-m)' },
+  { value: '-K', label: 'Протоколы (-K)' },
+  { value: '-H', label: 'Хосты (-H)' },
+  { value: '-j', label: 'IP-список (-j)' },
+  { value: '-V', label: 'Диапазон портов (-V)' },
+  { value: '-R', label: 'Раунды (-R)' },
+  { value: '-T', label: 'Таймаут (-T)' },
+  { value: '-y', label: 'Кэш-файл (-y)' },
+  { value: '-u', label: 'TTL кэша (-u)' },
+  { value: '-N', label: 'Без резолва (-N)' },
+  { value: '-U', label: 'Без UDP (-U)' },
+  { value: '-g', label: 'TTL соединений (-g)' },
+  { value: '-c', label: 'Лимит соединений (-c)' },
+  { value: '-b', label: 'Буфер (-b)' },
+  { value: '-F', label: 'TCP Fast Open (-F)' },
+  { value: '-Y', label: 'Drop SACK (-Y)' },
 ];
-const hostsModeOptions = [
-  { value: 'disable', label: 'Выключено' },
-  { value: 'blacklist', label: 'Чёрный список' },
-  { value: 'whitelist', label: 'Белый список' },
-];
+// Flags that take no value.
+const NO_VALUE = new Set(['-S', '-N', '-U', '-F', '-Y']);
 
 const form = reactive({
   enabled: false,
@@ -302,56 +232,27 @@ const form = reactive({
   authEnabled: true,
   username: '',
   password: '',
-  maxConnections: 512,
-  bufferSize: 16384,
-  defaultTtl: 0,
-  noDomain: false,
-  tcpFastOpen: false,
-  dropSack: false,
-  desyncHttp: true,
-  desyncHttps: true,
-  desyncUdp: true,
-  desyncMethod: 'oob',
-  splitPosition: 1,
-  splitAtHost: false,
-  fakeTtl: 8,
-  fakeSni: 'www.iana.org',
-  fakeOffset: 0,
-  oobData: 'a',
-  udpFakeCount: 1,
-  hostMixedCase: false,
-  domainMixedCase: false,
-  hostRemoveSpaces: false,
-  tlsRecordSplit: true,
-  tlsRecordSplitPosition: 1,
-  tlsRecordSplitAtSni: true,
-  hostsMode: 'disable',
-  hostsBlacklist: '',
-  hostsWhitelist: '',
-  proxyTestDelaySeconds: 1,
-  proxyTestRequests: 1,
+  desyncSteps: [],
   proxyTestConcurrencyLimit: 20,
   proxyTestTimeoutSeconds: 5,
   proxyTestSni: 'max.ru',
   proxyTestUseCustomStrategies: false,
   proxyTestCustomStrategies: '',
+  proxyTestTargets: '',
 });
 
-const INT_FIELDS = [
-  'proxyPort',
-  'maxConnections',
-  'bufferSize',
-  'defaultTtl',
-  'splitPosition',
-  'fakeTtl',
-  'fakeOffset',
-  'udpFakeCount',
-  'tlsRecordSplitPosition',
-  'proxyTestDelaySeconds',
-  'proxyTestRequests',
-  'proxyTestConcurrencyLimit',
-  'proxyTestTimeoutSeconds',
-];
+const preview = computed(() =>
+  form.desyncSteps
+    .filter((s) => s.flag)
+    .map((s) => (NO_VALUE.has(s.flag) || !s.value ? s.flag : s.flag + s.value))
+    .join(' '),
+);
+
+function valuePlaceholder(flag) {
+  if (NO_VALUE.has(flag)) return 'без значения';
+  if (flag === '-A' || flag === '-a') return 't,r,s';
+  return '1';
+}
 
 let loaded = false;
 let lastPw = '';
@@ -359,6 +260,7 @@ let lastPw = '';
 onMounted(async () => {
   try {
     Object.assign(form, await ProfilesService.ByeDPISettings());
+    form.desyncSteps = (form.desyncSteps ?? []).map((s) => ({ flag: s.flag, value: s.value }));
     lastPw = form.password;
   } catch {
     // backend not available (pure-vite preview)
@@ -370,12 +272,21 @@ onMounted(async () => {
 async function save() {
   if (!loaded) return;
   try {
-    const payload = { ...form };
-    INT_FIELDS.forEach((f) => {
-      payload[f] = Number(form[f]) || 0;
-    });
+    const payload = {
+      ...form,
+      proxyPort: Number(form.proxyPort) || 0,
+      proxyTestConcurrencyLimit: Number(form.proxyTestConcurrencyLimit) || 0,
+      proxyTestTimeoutSeconds: Number(form.proxyTestTimeoutSeconds) || 0,
+      desyncSteps: form.desyncSteps
+        .filter((s) => s.flag)
+        .map((s) => ({ flag: s.flag, value: NO_VALUE.has(s.flag) ? '' : s.value })),
+    };
     const saved = await ProfilesService.SetByeDPISettings(payload);
-    if (saved) Object.assign(form, saved);
+    if (saved) {
+      const steps = (saved.desyncSteps ?? []).map((s) => ({ flag: s.flag, value: s.value }));
+      Object.assign(form, saved);
+      form.desyncSteps = steps;
+    }
   } catch {
     // ignore persist failure
   }
@@ -387,13 +298,23 @@ function saveDebounced() {
   debounce = setTimeout(save, 400);
 }
 
+function addStep() {
+  form.desyncSteps.push({ flag: '-s', value: '1' });
+  save();
+}
+function removeStep(i) {
+  form.desyncSteps.splice(i, 1);
+  save();
+}
+function resetSteps() {
+  form.desyncSteps = DEFAULT_COMMAND.split(' ').map((tok) => ({ flag: tok.slice(0, 2), value: tok.slice(2) }));
+  save();
+}
 function resetCommand() {
   form.command = DEFAULT_COMMAND;
   save();
 }
 
-// ByeDPI is a local SOCKS proxy, so disabling its auth gets the same security warning as
-// the xray SOCKS inbound.
 async function onAuthToggle(v) {
   if (!v && !(await warnConfirm(WARN.socksAuthDisable))) return;
   form.authEnabled = v;
