@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -45,14 +46,13 @@ type AutoSearchService struct {
 	subs    *SubscriptionService
 	app     *application.App
 
-	mu                sync.Mutex
-	cancelFn          context.CancelFunc
-	running           bool
-	mode              string
-	pendingResponsive []rankedCandidate
-	foundIDs          []string
-	bestID            string
-	bestTitle         string
+	mu        sync.Mutex
+	cancelFn  context.CancelFunc
+	running   bool
+	mode      string
+	foundIDs  []string
+	bestID    string
+	bestTitle string
 }
 
 // NewAutoSearchService wires the finder to the store, executable path and subscription
@@ -100,10 +100,35 @@ func (s *AutoSearchService) SetSettings(a config.AutoSearchSettings) (config.Aut
 	return s.store.AutoSearchSettings(), nil
 }
 
-// Start begins a run. mode is "standard" or "whitelist". When gateWhitelist is true and mode
-// is whitelist, the run pauses after TCPing (phase whitelist_wait) so the user can switch to
-// the whitelisted network, then Continue resumes it (used by onboarding).
-func (s *AutoSearchService) Start(mode string, gateWhitelist bool) {
+// Start begins a run. mode is "standard" or "whitelist". Whitelist first asks the user to
+// switch to the whitelisted network (phase whitelist_wait) and does nothing until Continue
+// is called, so the subscription refresh and all probing happen on that network.
+func (s *AutoSearchService) Start(mode string) {
+	s.mu.Lock()
+	if s.running {
+		s.mu.Unlock()
+		return
+	}
+	s.mode = mode
+	s.foundIDs = nil
+	s.bestID, s.bestTitle = "", ""
+	s.mu.Unlock()
+	if mode == "whitelist" {
+		s.emitState(AutoSearchState{Phase: "whitelist_wait", Target: s.store.AutoSearchSettings().TargetCount})
+		return
+	}
+	s.launch(mode)
+}
+
+// Continue resumes a whitelist run once the user has connected the whitelisted network.
+func (s *AutoSearchService) Continue() {
+	s.mu.Lock()
+	mode := s.mode
+	s.mu.Unlock()
+	s.launch(mode)
+}
+
+func (s *AutoSearchService) launch(mode string) {
 	s.mu.Lock()
 	if s.running {
 		s.mu.Unlock()
@@ -112,29 +137,8 @@ func (s *AutoSearchService) Start(mode string, gateWhitelist bool) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.running = true
 	s.cancelFn = cancel
-	s.mode = mode
-	s.foundIDs = nil
-	s.bestID, s.bestTitle = "", ""
 	s.mu.Unlock()
-	go s.run(ctx, mode, gateWhitelist)
-}
-
-// Continue resumes a whitelist run that paused for the network switch.
-func (s *AutoSearchService) Continue() {
-	s.mu.Lock()
-	resp := s.pendingResponsive
-	mode := s.mode
-	s.pendingResponsive = nil
-	ctx, cancel := context.WithCancel(context.Background())
-	s.cancelFn = cancel
-	s.running = true
-	s.mu.Unlock()
-	if resp == nil {
-		return
-	}
-	go func() {
-		s.downloadAndFinish(ctx, mode, resp)
-	}()
+	go s.doRun(ctx, mode)
 }
 
 // Cancel stops a running search.
@@ -159,11 +163,12 @@ func (s *AutoSearchService) emitRow(r AutoSearchProfileRow) {
 	}
 }
 
-func (s *AutoSearchService) run(ctx context.Context, mode string, gateWhitelist bool) {
+func (s *AutoSearchService) doRun(ctx context.Context, mode string) {
 	set := s.store.AutoSearchSettings()
 	s.emitState(AutoSearchState{Phase: "prepare", Target: set.TargetCount})
 
-	// Refresh the candidate pool from all subscriptions.
+	// Refresh the candidate pool from all subscriptions (best-effort - a failed refresh, e.g.
+	// on a restrictive whitelist network, just falls back to the locally known profiles).
 	if s.subs != nil {
 		s.subs.RefreshAll()
 	}
@@ -189,15 +194,6 @@ func (s *AutoSearchService) run(ctx context.Context, mode string, gateWhitelist 
 	}
 	if len(responsive) == 0 {
 		s.finishFailed("ни один профиль не ответил")
-		return
-	}
-
-	if gateWhitelist && mode == "whitelist" {
-		s.mu.Lock()
-		s.pendingResponsive = responsive
-		s.running = false
-		s.mu.Unlock()
-		s.emitState(AutoSearchState{Phase: "whitelist_wait", Total: len(responsive), Target: set.TargetCount})
 		return
 	}
 	s.downloadAndFinish(ctx, mode, responsive)
@@ -343,7 +339,9 @@ func (s *AutoSearchService) downloadPhase(ctx context.Context, set config.AutoSe
 			defer wg.Done()
 			defer func() { <-sem }()
 			s.emitRow(AutoSearchProfileRow{ID: r.p.ID, Title: r.p.Title, Address: r.p.Address, LatencyMs: r.latency, Status: "checking", Metric: "подключаемся..."})
-			stable, speed := s.probeDownload(ctx, bin, r.p, byedpiFront, set)
+			stable, speed := s.probeDownload(ctx, bin, r.p, byedpiFront, set, func(m string) {
+				s.emitRow(AutoSearchProfileRow{ID: r.p.ID, Title: r.p.Title, Address: r.p.Address, LatencyMs: r.latency, Status: "checking", Metric: m})
+			})
 			mu.Lock()
 			completed++
 			if stable {
@@ -358,7 +356,7 @@ func (s *AutoSearchService) downloadPhase(ctx context.Context, set config.AutoSe
 			done := completed
 			mu.Unlock()
 			if stable {
-				s.emitRow(AutoSearchProfileRow{ID: r.p.ID, Title: r.p.Title, Address: r.p.Address, LatencyMs: r.latency, Status: "ok", Metric: "Проверка трафика OK"})
+				s.emitRow(AutoSearchProfileRow{ID: r.p.ID, Title: r.p.Title, Address: r.p.Address, LatencyMs: r.latency, Status: "ok", Metric: "OK " + fmtBytes(int64(set.DownloadSizeMb)*1024*1024) + " · " + fmtSpeed(speed)})
 			} else {
 				s.emitRow(AutoSearchProfileRow{ID: r.p.ID, Title: r.p.Title, Address: r.p.Address, LatencyMs: -1, Status: "err", Metric: "Проверка трафика не прошла"})
 			}
@@ -377,7 +375,7 @@ func (s *AutoSearchService) downloadPhase(ctx context.Context, set config.AutoSe
 // probeDownload spins up a proxy-only xray for the profile and downloads the test file
 // through it downloadAttempts times; stable = the target size is met on every attempt.
 // Returns stability and the best observed bytes/sec.
-func (s *AutoSearchService) probeDownload(ctx context.Context, bin string, p config.XrayProfile, byedpiFront string, set config.AutoSearchSettings) (bool, int64) {
+func (s *AutoSearchService) probeDownload(ctx context.Context, bin string, p config.XrayProfile, byedpiFront string, set config.AutoSearchSettings, emit func(string)) (bool, int64) {
 	port, err := freePort()
 	if err != nil {
 		return false, 0
@@ -431,12 +429,17 @@ func (s *AutoSearchService) probeDownload(ctx context.Context, bin string, p con
 			return false, bestSpeed
 		}
 		n, dur, ok := downloadThroughProxy(dialer, sizeBytes, perAttempt)
+		var speed int64
+		if dur > 0 {
+			speed = n * int64(time.Second) / int64(dur)
+		}
+		if emit != nil {
+			emit(fmt.Sprintf("%d/%d · %s · %s", attempt+1, set.DownloadAttempts, fmtBytes(n), fmtSpeed(speed)))
+		}
 		if ok && n >= sizeBytes-tolerance {
 			stableRuns++
-			if dur > 0 {
-				if sp := n * int64(time.Second) / int64(dur); sp > bestSpeed {
-					bestSpeed = sp
-				}
+			if speed > bestSpeed {
+				bestSpeed = speed
 			}
 		}
 		if attempt < set.DownloadAttempts-1 {
@@ -533,6 +536,22 @@ func (s *AutoSearchService) finishFailed(msg string) {
 	s.mu.Unlock()
 	s.emitState(AutoSearchState{Phase: "failed", Message: msg})
 }
+
+func fmtBytes(n int64) string {
+	units := []string{"B", "KB", "MB", "GB"}
+	v := float64(n)
+	i := 0
+	for v >= 1024 && i < len(units)-1 {
+		v /= 1024
+		i++
+	}
+	if i == 0 {
+		return fmt.Sprintf("%d B", n)
+	}
+	return fmt.Sprintf("%.1f %s", v, units[i])
+}
+
+func fmtSpeed(bytesPerSec int64) string { return fmtBytes(bytesPerSec) + "/s" }
 
 func clampInt64(v, lo, hi int64) int64 {
 	if v < lo {
