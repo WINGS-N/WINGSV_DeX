@@ -24,17 +24,18 @@ defineProps({
 <style scoped>
 /* Shrink with `zoom`, not `transform: scale` (which freezes the loader's rotate
    animation under WebKitGTK compositing). */
+/* Flex-centre so the loader spins around its own centre (top/left:50% offset it by its
+   size, which cannot be corrected with translate while the rotate animation owns it). */
 .patchdot {
-  position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 22px;
   height: 22px;
   flex-shrink: 0;
   zoom: 0.5;
 }
 .patchdot :deep(.samsung-loader) {
-  position: absolute;
-  top: 50%;
-  left: 50%;
+  position: relative;
 }
 </style>
