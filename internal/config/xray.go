@@ -151,6 +151,16 @@ type XrayProfile struct {
 // DedupKey identifies the same node across re-imports by its raw share link.
 func (p XrayProfile) DedupKey() string { return strings.TrimSpace(p.RawLink) }
 
+// PingRecord is a persisted connection-test result for one node.
+type PingRecord struct {
+	Success   bool `json:"success"`
+	LatencyMs int  `json:"latencyMs"`
+}
+
+// xrayPingKey keys a ping result by subscription + node identity, so a result survives a
+// subscription refresh (which mints new profile ids for the same underlying nodes).
+func xrayPingKey(p XrayProfile) string { return p.SubscriptionID + "|" + p.DedupKey() }
+
 // Subscription is a remote list of xray nodes refreshed on a schedule. The advertised*
 // fields are the per-subscription traffic quota reported by the server's
 // Subscription-Userinfo response header (upload/download/total bytes and an expiry).

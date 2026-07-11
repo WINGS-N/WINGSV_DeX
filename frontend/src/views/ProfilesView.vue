@@ -242,6 +242,11 @@ function apply(result) {
   xrayProfiles.value = result.xrayProfiles ?? [];
   xrayActiveId.value = result.xrayActiveId ?? '';
   subscriptions.value = result.subscriptions ?? [];
+  // Adopt the persisted test results (unless a live test is streaming right now).
+  if (!testing.value) {
+    Object.keys(pings).forEach((k) => delete pings[k]);
+    Object.assign(pings, result.xrayPings ?? {});
+  }
 }
 
 // All items for the current backend, mapped to a common list shape (with the last ping).
