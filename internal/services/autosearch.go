@@ -241,7 +241,14 @@ func (s *AutoSearchService) tcpingPhase(ctx context.Context, set config.AutoSear
 		}(c)
 	}
 	wg.Wait()
-	sort.SliceStable(responsive, func(i, j int) bool { return responsive[i].latency < responsive[j].latency })
+	// Fastest first, but favorites are probed before everyone else (the final selection is
+	// still by throughput in the download phase).
+	sort.SliceStable(responsive, func(i, j int) bool {
+		if responsive[i].p.Favorite != responsive[j].p.Favorite {
+			return responsive[i].p.Favorite
+		}
+		return responsive[i].latency < responsive[j].latency
+	})
 	return responsive
 }
 
