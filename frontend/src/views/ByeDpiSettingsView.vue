@@ -203,6 +203,60 @@
             </div>
           </SamsungCard>
         </template>
+
+        <SamsungCard kicker="Подбор стратегий" class="mt-5">
+          <div class="divide-y divide-wings-divider">
+            <button
+              type="button"
+              class="flex w-full items-center justify-between py-3.5 text-left"
+              @click="openOverlay('byedpi-strategies')"
+            >
+              <span class="flex flex-col">
+                <span class="text-[17px]">Открыть подбор</span>
+                <span class="mt-0.5 text-sm text-wings-muted">Протестировать стратегии и применить лучшую</span>
+              </span>
+              <ChevronRight :size="20" class="shrink-0 text-wings-muted" />
+            </button>
+            <OneuiInput label="SNI для теста" v-model="form.proxyTestSni" @update:model-value="saveDebounced" />
+            <OneuiInput
+              label="Таймаут, с"
+              type="number"
+              v-model="form.proxyTestTimeoutSeconds"
+              @update:model-value="saveDebounced"
+            />
+            <OneuiInput
+              label="Параллельно"
+              type="number"
+              v-model="form.proxyTestConcurrencyLimit"
+              @update:model-value="saveDebounced"
+            />
+            <div class="py-3">
+              <p class="mb-1 text-sm text-wings-muted">Тестовые домены (по одному на строку)</p>
+              <textarea
+                v-model="form.proxyTestTargets"
+                rows="3"
+                spellcheck="false"
+                class="w-full resize-none rounded-xl border border-wings-divider bg-wings-input px-3 py-2 font-mono text-[13px] text-wings-text outline-none focus:border-wings-inputLine"
+                @input="saveDebounced"
+              ></textarea>
+            </div>
+            <SwitchRow
+              title="Свой список стратегий"
+              v-model="form.proxyTestUseCustomStrategies"
+              @update:model-value="save"
+            />
+            <div v-if="form.proxyTestUseCustomStrategies" class="py-3">
+              <p class="mb-1 text-sm text-wings-muted">Стратегии (по одной на строку)</p>
+              <textarea
+                v-model="form.proxyTestCustomStrategies"
+                rows="4"
+                spellcheck="false"
+                class="w-full resize-none rounded-xl border border-wings-divider bg-wings-input px-3 py-2 font-mono text-[13px] text-wings-text outline-none focus:border-wings-inputLine"
+                @input="saveDebounced"
+              ></textarea>
+            </div>
+          </div>
+        </SamsungCard>
       </template>
     </div>
   </div>
@@ -210,13 +264,13 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, reactive } from 'vue';
-import { ChevronLeft } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
 import { ProfilesService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
 import OneuiSelect from '@/components/controls/OneuiSelect.vue';
 import OneuiInput from '@/components/controls/OneuiInput.vue';
 import SwitchRow from '@/components/layout/SwitchRow.vue';
-import { closeOverlay } from '@/stores/nav.js';
+import { closeOverlay, openOverlay } from '@/stores/nav.js';
 import { usePinnedScroll } from '@/composables/usePinnedScroll.js';
 import { WARN, warnConfirm, isPasswordTooSimple } from '@/stores/proxyWarnings.js';
 
