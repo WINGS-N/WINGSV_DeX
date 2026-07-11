@@ -27,20 +27,27 @@ func (s *ProfilesService) notify() {
 	}
 }
 
-// ProfilesResult is the frontend-facing snapshot of the profile list.
+// ProfilesResult is the frontend-facing snapshot of the profile list. It carries both
+// backend sets so the UI can switch between VK TURN and Xray without a second round-trip.
 type ProfilesResult struct {
-	Profiles   []config.Profile      `json:"profiles"`
-	ActiveID   string                `json:"activeId"`
-	SubBackend string                `json:"subBackend"`
-	Client     config.ClientSettings `json:"client"`
+	Profiles       []config.Profile      `json:"profiles"`
+	ActiveID       string                `json:"activeId"`
+	SubBackend     string                `json:"subBackend"`
+	NetworkBackend string                `json:"networkBackend"`
+	Client         config.ClientSettings `json:"client"`
+	XrayProfiles   []config.XrayProfile  `json:"xrayProfiles"`
+	XrayActiveID   string                `json:"xrayActiveId"`
 }
 
 func (s *ProfilesService) snapshot() ProfilesResult {
 	return ProfilesResult{
-		Profiles:   s.store.List(),
-		ActiveID:   s.store.ActiveID(),
-		SubBackend: s.store.SubBackend(),
-		Client:     s.store.Client(),
+		Profiles:       s.store.List(),
+		ActiveID:       s.store.ActiveID(),
+		SubBackend:     s.store.SubBackend(),
+		NetworkBackend: s.store.NetworkBackend(),
+		Client:         s.store.Client(),
+		XrayProfiles:   s.store.XrayList(),
+		XrayActiveID:   s.store.XrayActiveID(),
 	}
 }
 
@@ -108,6 +115,64 @@ func (s *ProfilesService) CreateProfile() (ProfilesResult, error) {
 		return ProfilesResult{}, err
 	}
 	return s.snapshot(), nil
+}
+
+// SetNetworkBackend switches the active network backend ("vk_turn" | "xray").
+func (s *ProfilesService) SetNetworkBackend(kind string) (ProfilesResult, error) {
+	if err := s.store.SetNetworkBackend(kind); err != nil {
+		return ProfilesResult{}, err
+	}
+	s.notify()
+	return s.snapshot(), nil
+}
+
+// ImportXray adds Xray nodes from a raw share link or an Xray-backed wingsv:// link and
+// switches the active backend to Xray.
+func (s *ProfilesService) ImportXray(link string) (ProfilesResult, error) {
+	if _, err := s.store.ImportXray(link); err != nil {
+		return ProfilesResult{}, err
+	}
+	s.notify()
+	return s.snapshot(), nil
+}
+
+// XrayActivate marks an Xray profile active by id.
+func (s *ProfilesService) XrayActivate(id string) (ProfilesResult, error) {
+	if err := s.store.XrayActivate(id); err != nil {
+		return ProfilesResult{}, err
+	}
+	s.notify()
+	return s.snapshot(), nil
+}
+
+// XrayToggleFavorite flips an Xray profile's favorite flag.
+func (s *ProfilesService) XrayToggleFavorite(id string) (ProfilesResult, error) {
+	if err := s.store.XrayToggleFavorite(id); err != nil {
+		return ProfilesResult{}, err
+	}
+	return s.snapshot(), nil
+}
+
+// XrayRemove deletes an Xray profile by id.
+func (s *ProfilesService) XrayRemove(id string) (ProfilesResult, error) {
+	if err := s.store.XrayRemove(id); err != nil {
+		return ProfilesResult{}, err
+	}
+	return s.snapshot(), nil
+}
+
+// XraySettings returns the current Xray settings.
+func (s *ProfilesService) XraySettings() config.XraySettings {
+	return s.store.XraySettings()
+}
+
+// SetXraySettings persists the Xray settings and lets a running tunnel react.
+func (s *ProfilesService) SetXraySettings(x config.XraySettings) (config.XraySettings, error) {
+	if err := s.store.SetXraySettings(x); err != nil {
+		return config.XraySettings{}, err
+	}
+	s.notify()
+	return s.store.XraySettings(), nil
 }
 
 // SetClientSettings persists the device-global client parameters (VK-links pool,
