@@ -43,6 +43,7 @@ type ProfilesResult struct {
 	XrayProfiles   []config.XrayProfile  `json:"xrayProfiles"`
 	XrayActiveID   string                `json:"xrayActiveId"`
 	Subscriptions  []config.Subscription `json:"subscriptions"`
+	XrayPings      map[string]int64      `json:"xrayPings"` // profileId -> last delay ms (-1 = failed)
 }
 
 func (s *ProfilesService) snapshot() ProfilesResult {
@@ -55,7 +56,22 @@ func (s *ProfilesService) snapshot() ProfilesResult {
 		XrayProfiles:   s.store.XrayList(),
 		XrayActiveID:   s.store.XrayActiveID(),
 		Subscriptions:  s.store.SubscriptionList(),
+		XrayPings:      xrayPingsToDelays(s.store.XrayPingByProfileID()),
 	}
+}
+
+// xrayPingsToDelays flattens persisted results to a profileId -> delay map, with -1 for a
+// failed test, which is what the Profiles screen renders.
+func xrayPingsToDelays(recs map[string]config.PingRecord) map[string]int64 {
+	out := make(map[string]int64, len(recs))
+	for id, r := range recs {
+		if r.Success {
+			out[id] = int64(r.LatencyMs)
+		} else {
+			out[id] = -1
+		}
+	}
+	return out
 }
 
 // List returns the current profiles and the active id.

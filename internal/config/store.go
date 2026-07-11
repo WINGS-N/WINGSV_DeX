@@ -31,12 +31,13 @@ type storeData struct {
 	AppRouting     AppRoutingSettings `json:"appRouting"`     // per-app split-tunnel mode + lists
 
 	// Xray backend state, parallel to the VK TURN profiles above.
-	XrayProfiles     []XrayProfile  `json:"xrayProfiles"`
-	XrayActiveID     string         `json:"xrayActiveId"`
-	XraySettings     XraySettings   `json:"xraySettings"`
-	Subscriptions    []Subscription `json:"subscriptions"`
-	DefaultSubSeeded bool           `json:"defaultSubSeeded"` // the built-in Universal sub was added once
-	ByeDPISettings   ByeDPISettings `json:"byedpiSettings"`
+	XrayProfiles     []XrayProfile         `json:"xrayProfiles"`
+	XrayActiveID     string                `json:"xrayActiveId"`
+	XraySettings     XraySettings          `json:"xraySettings"`
+	Subscriptions    []Subscription        `json:"subscriptions"`
+	DefaultSubSeeded bool                  `json:"defaultSubSeeded"` // the built-in Universal sub was added once
+	ByeDPISettings   ByeDPISettings        `json:"byedpiSettings"`
+	XrayPingResults  map[string]PingRecord `json:"xrayPingResults"` // keyed by xrayPingKey
 }
 
 // NewStore loads the store from path, creating an empty one if the file is absent.
@@ -228,7 +229,58 @@ func (s *Store) XrayRemove(id string) error {
 	if s.data.XrayActiveID == id {
 		s.data.XrayActiveID = ""
 	}
+	s.prunePingResultsLocked()
 	return s.saveLocked()
+}
+
+// SetXrayPingResults persists a batch of connection-test results, keyed by profile id,
+// resolving each to its stable ping key and pruning results for nodes that no longer exist.
+func (s *Store) SetXrayPingResults(byProfileID map[string]PingRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.XrayPingResults == nil {
+		s.data.XrayPingResults = map[string]PingRecord{}
+	}
+	idToKey := map[string]string{}
+	for _, p := range s.data.XrayProfiles {
+		idToKey[p.ID] = xrayPingKey(p)
+	}
+	for id, rec := range byProfileID {
+		if key := idToKey[id]; key != "" {
+			s.data.XrayPingResults[key] = rec
+		}
+	}
+	s.prunePingResultsLocked()
+	return s.saveLocked()
+}
+
+// XrayPingByProfileID returns the persisted results mapped onto the current profile ids.
+func (s *Store) XrayPingByProfileID() map[string]PingRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[string]PingRecord{}
+	for _, p := range s.data.XrayProfiles {
+		if r, ok := s.data.XrayPingResults[xrayPingKey(p)]; ok {
+			out[p.ID] = r
+		}
+	}
+	return out
+}
+
+// prunePingResultsLocked drops stored results whose node is no longer present.
+func (s *Store) prunePingResultsLocked() {
+	if len(s.data.XrayPingResults) == 0 {
+		return
+	}
+	keep := map[string]bool{}
+	for _, p := range s.data.XrayProfiles {
+		keep[xrayPingKey(p)] = true
+	}
+	for k := range s.data.XrayPingResults {
+		if !keep[k] {
+			delete(s.data.XrayPingResults, k)
+		}
+	}
 }
 
 // XraySettings returns the Xray settings, backstopping scalar defaults and lazily
@@ -389,6 +441,7 @@ func (s *Store) ApplySubscriptionNodes(id string, nodes []XrayProfile, upload, d
 	sub.AdvertisedDownloadBytes = download
 	sub.AdvertisedTotalBytes = total
 	sub.AdvertisedExpireAt = expire
+	s.prunePingResultsLocked()
 	return s.saveLocked()
 }
 

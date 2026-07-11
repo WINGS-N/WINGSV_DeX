@@ -69,10 +69,12 @@ func (s *XrayTestService) Start(kind string) []string {
 }
 
 // run fans the measure function out over all nodes with a concurrency cap, emitting each
-// result as it completes.
+// result as it completes and persisting the whole batch when the run finishes.
 func (s *XrayTestService) run(profiles []config.XrayProfile, limit int, measure func(config.XrayProfile) int64) {
 	sem := make(chan struct{}, limit)
 	var wg sync.WaitGroup
+	var mu sync.Mutex
+	records := make(map[string]config.PingRecord, len(profiles))
 	for _, p := range profiles {
 		wg.Add(1)
 		sem <- struct{}{}
@@ -80,15 +82,26 @@ func (s *XrayTestService) run(profiles []config.XrayProfile, limit int, measure 
 			defer wg.Done()
 			defer func() { <-sem }()
 			delay := measure(p)
+			mu.Lock()
+			records[p.ID] = config.PingRecord{Success: delay >= 0, LatencyMs: int(max64(delay, 0))}
+			mu.Unlock()
 			if s.app != nil {
 				s.app.Event.Emit(XrayTestResultEvent, PingResult{ID: p.ID, DelayMs: delay})
 			}
 		}(p)
 	}
 	wg.Wait()
+	_ = s.store.SetXrayPingResults(records)
 	if s.app != nil {
 		s.app.Event.Emit(XrayTestDoneEvent, nil)
 	}
+}
+
+func max64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func tcping(p config.XrayProfile) int64 {
