@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col gap-2">
     <div
-      v-for="r in rows"
+      v-for="r in orderedRows"
       :key="r.id"
       class="flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-200"
       :class="[
@@ -39,6 +39,11 @@ import { computed } from 'vue';
 import SamsungSpinner from '@/components/layout/SamsungSpinner.vue';
 
 const props = defineProps({ rows: { type: Array, default: () => [] }, glass: { type: Boolean, default: false } });
+
+// Rows being probed right now float to the top; the rest keep their arrival order.
+const orderedRows = computed(() =>
+  [...props.rows].sort((a, b) => (a.status === 'checking' ? 0 : 1) - (b.status === 'checking' ? 0 : 1)),
+);
 
 // On the SUW gradient the low-alpha badges wash out, so use solid pills (white text) there,
 // matching the app; on the dark theme keep the tinted variant.
