@@ -70,6 +70,7 @@ func main() {
 	subscriptionSvc := services.NewSubscriptionService(store)
 	xrayTestSvc := services.NewXrayTestService(store, exePath)
 	byedpiStrategySvc := services.NewByeDpiStrategyService(store, exePath)
+	autoSearchSvc := services.NewAutoSearchService(store, exePath, subscriptionSvc)
 
 	app := application.New(application.Options{
 		Name:        "WINGS V DeX",
@@ -84,6 +85,7 @@ func main() {
 			application.NewService(subscriptionSvc),
 			application.NewService(xrayTestSvc),
 			application.NewService(byedpiStrategySvc),
+			application.NewService(autoSearchSvc),
 			application.NewService(services.NewOnboardingService(configDir)),
 			application.NewService(services.NewMusicService()),
 			application.NewService(services.NewAvatarService(configDir)),
@@ -111,6 +113,7 @@ func main() {
 	subscriptionSvc.StartAutoUpdate()
 	xrayTestSvc.SetApp(app)
 	byedpiStrategySvc.SetApp(app)
+	autoSearchSvc.SetApp(app)
 	logStore.SetListener(func(channel, line string) {
 		app.Event.Emit(services.LogLineEvent, services.LogLine{Channel: channel, Line: line})
 	})
