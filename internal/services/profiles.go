@@ -42,6 +42,7 @@ type ProfilesResult struct {
 	Client         config.ClientSettings `json:"client"`
 	XrayProfiles   []config.XrayProfile  `json:"xrayProfiles"`
 	XrayActiveID   string                `json:"xrayActiveId"`
+	Subscriptions  []config.Subscription `json:"subscriptions"`
 }
 
 func (s *ProfilesService) snapshot() ProfilesResult {
@@ -53,6 +54,7 @@ func (s *ProfilesService) snapshot() ProfilesResult {
 		Client:         s.store.Client(),
 		XrayProfiles:   s.store.XrayList(),
 		XrayActiveID:   s.store.XrayActiveID(),
+		Subscriptions:  s.store.SubscriptionList(),
 	}
 }
 
