@@ -51,6 +51,7 @@ func SetTunnelMasquerade(on bool, ifname string, mark int) error {
 	if !on {
 		return nil
 	}
+	ensureModule("nft_masq")
 	ruleset := fmt.Sprintf(`table inet %s {
 	chain postrouting {
 		type nat hook postrouting priority srcnat; policy accept;
@@ -74,6 +75,7 @@ func SetBypassMasquerade(on bool, physIface string, mark int) error {
 	if !on || physIface == "" {
 		return nil
 	}
+	ensureModule("nft_masq")
 	ruleset := fmt.Sprintf(`table inet %s {
 	chain postrouting {
 		type nat hook postrouting priority srcnat; policy accept;
