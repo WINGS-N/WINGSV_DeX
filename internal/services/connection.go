@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -679,7 +680,10 @@ func (s *ConnectionService) connectXray() (ConnectionState, error) {
 			return s.fail(err)
 		}
 		if byedpiSettings.Enabled {
-			if err := dp.ByeDPIUp(byedpiBin, byedpi.Args(byedpiSettings)); err != nil {
+			// On Windows the front's upstream needs /32 bypass routes for the node's server
+			// IPs (Linux bypasses via the cgroup); resolve them from the profile address.
+			bypassIPs := resolveHostIPs(profile.Address)
+			if err := dp.ByeDPIUp(byedpiBin, byedpi.Args(byedpiSettings), bypassIPs); err != nil {
 				s.runtimeLogf("byedpiup failure: %v", err)
 				dp.Stop()
 				return s.fail(err)
@@ -736,6 +740,29 @@ func (s *ConnectionService) stopByedpiProc() {
 	if bp != nil {
 		bp.Stop()
 	}
+}
+
+// resolveHostIPs returns the IPv4 addresses a node's server address resolves to (or the IP
+// itself if it is already literal), used for the Windows ByeDPI-front off-tunnel bypass.
+func resolveHostIPs(host string) []string {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return nil
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return []string{host}
+	}
+	addrs, err := net.LookupIP(host)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, a := range addrs {
+		if v4 := a.To4(); v4 != nil {
+			out = append(out, v4.String())
+		}
+	}
+	return out
 }
 
 func xrayBinaryPath(exePath string) string { return helperBinaryPath(exePath, "xray") }

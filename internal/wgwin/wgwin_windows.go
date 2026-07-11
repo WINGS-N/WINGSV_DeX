@@ -122,6 +122,37 @@ func physicalGateway() (netip.Addr, winipcfg.LUID) {
 	return best.NextHop.Addr(), best.InterfaceLUID
 }
 
+// AddPhysicalBypassRoutes pins each destination IP to a /32 route out the current physical
+// default gateway, so traffic to those servers skips a full-tunnel default route. It must be
+// called BEFORE the tun captures the default route (e.g. the xray TUN, which is created after
+// ByeDPI). Returns a cleanup that removes the routes. Used for the ByeDPI front's upstream on
+// Windows (Linux bypasses it via the marking cgroup instead).
+func AddPhysicalBypassRoutes(ips []string) func() {
+	gwIP, gwLUID := physicalGateway()
+	if !gwIP.IsValid() || gwLUID == 0 {
+		return func() {}
+	}
+	var added []netip.Prefix
+	for _, s := range ips {
+		ip, err := netip.ParseAddr(strings.TrimSpace(s))
+		if err != nil || !ip.Is4() {
+			continue
+		}
+		dst := netip.PrefixFrom(ip, 32)
+		if err := gwLUID.AddRoute(dst, gwIP, 1); err != nil {
+			log.Printf("wgwin: byedpi bypass route %s via %s: %v", ip, gwIP, err)
+			continue
+		}
+		added = append(added, dst)
+		log.Printf("wgwin: byedpi bypass %s via %s", ip, gwIP)
+	}
+	return func() {
+		for _, dst := range added {
+			_ = gwLUID.DeleteRoute(dst, gwIP)
+		}
+	}
+}
+
 // AddBypassRoute routes a single underlay destination (a VK TURN / peer server IP vkturn
 // connects to) out the physical gateway with a /32, overriding the full-tunnel /1 routes.
 // Without it vkturn's own traffic matches the tunnel /1 routes and gets the tunnel's source

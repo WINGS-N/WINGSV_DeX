@@ -66,8 +66,9 @@ type command struct {
 
 	// ByeDPI front: the helper spawns ciadpi into the bypass cgroup so its upstream
 	// egress skips the tunnel, and xray dials its local SOCKS as a DPI-bypass front.
-	ByeDPIBin  string   `json:"byedpiBin,omitempty"`
-	ByeDPIArgs []string `json:"byedpiArgs,omitempty"`
+	ByeDPIBin       string   `json:"byedpiBin,omitempty"`
+	ByeDPIArgs      []string `json:"byedpiArgs,omitempty"`
+	ByeDPIBypassIPs []string `json:"byedpiBypassIps,omitempty"` // windows: /32-route the front's server IPs off-tunnel
 }
 
 type reply struct {
@@ -245,16 +246,17 @@ func (c *Controller) XrayUp(xrayBin, configJSON, tunName, datDir string, enableI
 	})
 }
 
-// ByeDPIUp has the helper spawn ciadpi into the bypass cgroup (so its upstream traffic
-// leaves the physical link, not the tunnel it fronts). Call before XrayUp.
-func (c *Controller) ByeDPIUp(bin string, args []string) error {
+// ByeDPIUp has the helper spawn ciadpi so its upstream traffic leaves the physical link, not
+// the tunnel it fronts (Linux: bypass cgroup; Windows: /32 routes for bypassIPs). Call before
+// XrayUp so the physical gateway is still resolvable on Windows.
+func (c *Controller) ByeDPIUp(bin string, args, bypassIPs []string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.h == nil {
 		return errors.New("dataplane: not started")
 	}
-	logLine(c.logw, "dataplane: sending byedpiup bin=%s args=%d", bin, len(args))
-	return c.send(command{Cmd: "byedpiup", ByeDPIBin: bin, ByeDPIArgs: args})
+	logLine(c.logw, "dataplane: sending byedpiup bin=%s args=%d bypass=%d", bin, len(args), len(bypassIPs))
+	return c.send(command{Cmd: "byedpiup", ByeDPIBin: bin, ByeDPIArgs: args, ByeDPIBypassIPs: bypassIPs})
 }
 
 // XrayDown stops the xray child, tearing its TUN (and thus its routes) down.
