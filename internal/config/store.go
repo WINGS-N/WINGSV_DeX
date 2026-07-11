@@ -43,6 +43,8 @@ type storeData struct {
 	// survives re-imports: VK TURN by DedupKey, Xray by xrayPingKey.
 	VKTrafficResults   map[string]TrafficRecord `json:"vkTrafficResults"`
 	XrayTrafficResults map[string]TrafficRecord `json:"xrayTrafficResults"`
+
+	AutoSearch AutoSearchSettings `json:"autoSearch"`
 }
 
 // NewStore loads the store from path, creating an empty one if the file is absent.
@@ -424,6 +426,44 @@ func (s *Store) SetByeDPISettings(b ByeDPISettings) error {
 	b.ensureCreds()
 	s.data.ByeDPISettings = b
 	return s.saveLocked()
+}
+
+// AutoSearchSettings returns the auto-search settings with defaults + clamps applied.
+func (s *Store) AutoSearchSettings() AutoSearchSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a := s.data.AutoSearch
+	if a.TargetCount == 0 {
+		a = DefaultAutoSearchSettings()
+	}
+	return a.normalized()
+}
+
+// SetAutoSearchSettings persists the auto-search settings.
+func (s *Store) SetAutoSearchSettings(a AutoSearchSettings) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data.AutoSearch = a.normalized()
+	return s.saveLocked()
+}
+
+// TagAutoSearchProfiles re-tags the given Xray profiles into the synthetic "Автопоиск"
+// subscription so they group under its filter chip, and returns the resulting list.
+func (s *Store) TagAutoSearchProfiles(ids []string) []XrayProfile {
+	want := map[string]bool{}
+	for _, id := range ids {
+		want[id] = true
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.data.XrayProfiles {
+		if want[s.data.XrayProfiles[i].ID] {
+			s.data.XrayProfiles[i].SubscriptionID = AutoSearchSubscriptionID
+			s.data.XrayProfiles[i].SubscriptionTitle = AutoSearchSubscriptionTitle
+		}
+	}
+	_ = s.saveLocked()
+	return append([]XrayProfile(nil), s.data.XrayProfiles...)
 }
 
 // SubscriptionList returns a copy of the stored subscriptions.

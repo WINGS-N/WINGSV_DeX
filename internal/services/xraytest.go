@@ -123,7 +123,7 @@ func (s *XrayTestService) realDelay(bin string, p config.XrayProfile) int64 {
 	if err != nil {
 		return -1
 	}
-	cfg, err := xray.ProbeConfig(bin, p.RawLink, port)
+	cfg, err := xray.ProbeConfig(bin, p.RawLink, port, "")
 	if err != nil {
 		return -1
 	}
