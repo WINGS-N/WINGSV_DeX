@@ -102,6 +102,7 @@ func SetupCgroupMark(name string, fwmark int, table string) (*CgroupMark, error)
 	if _, err := os.Stat(filepath.Join(cgroupRoot, "cgroup.controllers")); err != nil {
 		return nil, fmt.Errorf("wg: cgroup v2 not mounted at %s: %w", cgroupRoot, err)
 	}
+	ensureNftSocketModule()
 	m := &CgroupMark{name: name, path: filepath.Join(cgroupRoot, name), table: table}
 	if err := os.Mkdir(m.path, 0o755); err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf("wg: create cgroup %s: %w", m.path, err)
@@ -156,6 +157,17 @@ func (m *CgroupMark) drainToRoot() {
 	for _, pid := range strings.Fields(string(b)) {
 		_ = os.WriteFile(rootProcs, []byte(pid), 0o644)
 	}
+}
+
+// ensureNftSocketModule loads the nft_socket extension when it is not already present. The
+// "socket cgroupv2" match used by the cgroup marking rule lives in that module, and some
+// kernels (seen on custom builds) do not autoload it, so the rule install fails with ENOENT
+// until it is modprobed. The net-helper runs as root, so no extra elevation is needed.
+func ensureNftSocketModule() {
+	if b, err := os.ReadFile("/proc/modules"); err == nil && strings.Contains(string(b), "nft_socket ") {
+		return
+	}
+	_ = exec.Command("modprobe", "nft_socket").Run()
 }
 
 func runNft(args ...string) error {
