@@ -267,7 +267,7 @@ async function pasteImport() {
   try {
     const text = await Clipboard.Text();
     if (!text) return;
-    await ProfilesService.ImportLink(text.trim());
+    await ProfilesService.SmartImport(text.trim());
     await loadActiveEndpoint();
   } catch (e) {
     state.error = String(e?.message ?? e ?? 'Не удалось импортировать из буфера');
@@ -291,8 +291,13 @@ async function copyConfig() {
 async function loadActiveEndpoint() {
   try {
     const result = await ProfilesService.List();
-    const active = (result.profiles ?? []).find((p) => p.id === result.activeId);
-    activeEndpoint.value = active ? active.vkTurnEndpoint : '';
+    if ((result.networkBackend || 'vk_turn') === 'xray') {
+      const active = (result.xrayProfiles ?? []).find((p) => p.id === result.xrayActiveId);
+      activeEndpoint.value = active ? (active.port ? `${active.address}:${active.port}` : active.address) : '';
+    } else {
+      const active = (result.profiles ?? []).find((p) => p.id === result.activeId);
+      activeEndpoint.value = active ? active.vkTurnEndpoint : '';
+    }
   } catch {
     // backend not available (pure-vite preview)
   }
