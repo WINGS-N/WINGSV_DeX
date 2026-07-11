@@ -18,7 +18,8 @@
       <SamsungSpinner v-if="r.status === 'checking'" class="shrink-0" />
       <span
         v-else-if="r.status === 'err'"
-        class="shrink-0 rounded-full bg-red-500/20 px-3 py-1 text-[13px] font-bold text-red-400"
+        class="shrink-0 rounded-full px-3 py-1 text-[13px] font-bold"
+        :class="errBadge"
       >
         ERR
       </span>
@@ -34,11 +35,21 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import SamsungSpinner from '@/components/layout/SamsungSpinner.vue';
 
-defineProps({ rows: { type: Array, default: () => [] }, glass: { type: Boolean, default: false } });
+const props = defineProps({ rows: { type: Array, default: () => [] }, glass: { type: Boolean, default: false } });
+
+// On the SUW gradient the low-alpha badges wash out, so use solid pills (white text) there,
+// matching the app; on the dark theme keep the tinted variant.
+const errBadge = computed(() => (props.glass ? 'bg-red-500 text-white' : 'bg-red-500/20 text-red-400'));
 
 function badge(ms) {
+  if (props.glass) {
+    if (ms <= 150) return 'bg-emerald-500 text-white';
+    if (ms <= 350) return 'bg-amber-500 text-white';
+    return 'bg-red-500 text-white';
+  }
   if (ms <= 150) return 'bg-emerald-500/20 text-emerald-400';
   if (ms <= 350) return 'bg-amber-500/20 text-amber-400';
   return 'bg-red-500/20 text-red-400';
