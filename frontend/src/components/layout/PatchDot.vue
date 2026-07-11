@@ -1,12 +1,10 @@
 <template>
   <span v-if="state === 'applying'" class="patchdot" aria-hidden="true">
-    <span class="patchdot-scale">
-      <span class="samsung-loader">
-        <span class="samsung-loader-dot samsung-loader-dot-top"></span>
-        <span class="samsung-loader-dot samsung-loader-dot-right"></span>
-        <span class="samsung-loader-dot samsung-loader-dot-bottom"></span>
-        <span class="samsung-loader-dot samsung-loader-dot-left"></span>
-      </span>
+    <span class="samsung-loader">
+      <span class="samsung-loader-dot samsung-loader-dot-top"></span>
+      <span class="samsung-loader-dot samsung-loader-dot-right"></span>
+      <span class="samsung-loader-dot samsung-loader-dot-bottom"></span>
+      <span class="samsung-loader-dot samsung-loader-dot-left"></span>
     </span>
   </span>
   <span v-else-if="state === 'failed' || state === 'reverted_needs_restart'" class="shrink-0 text-[15px] leading-none">
@@ -24,20 +22,19 @@ defineProps({
 </script>
 
 <style scoped>
+/* Shrink with `zoom`, not `transform: scale` (which freezes the loader's rotate
+   animation under WebKitGTK compositing). */
 .patchdot {
   position: relative;
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
+  zoom: 0.5;
 }
-/* Scale on this static wrapper, not on the loader itself - the loader has its own rotate
-   animation that would override a static transform. Origin pinned to the box centre. */
-.patchdot-scale {
+.patchdot :deep(.samsung-loader) {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform-origin: top left;
-  transform: scale(0.45);
 }
 </style>

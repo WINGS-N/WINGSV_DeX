@@ -1,12 +1,10 @@
 <template>
   <span class="dex-spin" aria-hidden="true">
-    <span class="dex-spin-scale">
-      <span class="samsung-loader">
-        <span class="samsung-loader-dot samsung-loader-dot-top"></span>
-        <span class="samsung-loader-dot samsung-loader-dot-right"></span>
-        <span class="samsung-loader-dot samsung-loader-dot-bottom"></span>
-        <span class="samsung-loader-dot samsung-loader-dot-left"></span>
-      </span>
+    <span class="samsung-loader">
+      <span class="samsung-loader-dot samsung-loader-dot-top"></span>
+      <span class="samsung-loader-dot samsung-loader-dot-right"></span>
+      <span class="samsung-loader-dot samsung-loader-dot-bottom"></span>
+      <span class="samsung-loader-dot samsung-loader-dot-left"></span>
     </span>
   </span>
 </template>
@@ -17,21 +15,20 @@
 </script>
 
 <style scoped>
+/* Shrink with `zoom`, not `transform: scale`: a static transform makes WebKitGTK
+   composite this into a layer where the loader's own rotate animation freezes. `zoom`
+   scales layout (and footprint) without that. */
 .dex-spin {
   position: relative;
   display: inline-block;
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
+  zoom: 0.62;
 }
-/* The loader spins itself, so the scale lives on this static wrapper (not on the loader,
-   whose rotate animation would override a static transform). Its origin is pinned to the
-   box centre and it scales down from there. */
-.dex-spin-scale {
+.dex-spin :deep(.samsung-loader) {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform-origin: top left;
-  transform: scale(0.48);
 }
 </style>
