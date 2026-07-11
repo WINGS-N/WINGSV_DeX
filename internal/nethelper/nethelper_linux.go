@@ -34,8 +34,9 @@ type command struct {
 	DatDir     string `json:"datDir"`     // geo asset directory (may be empty)
 	EnableIPv6 bool   `json:"enableIpv6"`
 
-	ByeDPIBin  string   `json:"byedpiBin"`  // path to bin/byedpi (ciadpi)
-	ByeDPIArgs []string `json:"byedpiArgs"` // ciadpi argv
+	ByeDPIBin       string   `json:"byedpiBin"`       // path to bin/byedpi (ciadpi)
+	ByeDPIArgs      []string `json:"byedpiArgs"`      // ciadpi argv
+	ByeDPIBypassIPs []string `json:"byedpiBypassIps"` // windows-only; the cgroup handles bypass on Linux
 }
 
 type reply struct {

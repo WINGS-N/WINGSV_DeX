@@ -49,8 +49,9 @@ type command struct {
 	DatDir     string `json:"datDir"`
 	EnableIPv6 bool   `json:"enableIpv6"`
 
-	ByeDPIBin  string   `json:"byedpiBin"`
-	ByeDPIArgs []string `json:"byedpiArgs"`
+	ByeDPIBin       string   `json:"byedpiBin"`
+	ByeDPIArgs      []string `json:"byedpiArgs"`
+	ByeDPIBypassIPs []string `json:"byedpiBypassIps"`
 }
 
 type reply struct {
@@ -108,6 +109,7 @@ func Run() error {
 	var vkturnPid int
 	var xray *xrayChild
 	var byedpi *byedpiChild
+	var byedpiBypassCleanup func()
 	teardown := func() {
 		if xray != nil {
 			xray.stop()
@@ -116,6 +118,10 @@ func Run() error {
 		if byedpi != nil {
 			byedpi.stop()
 			byedpi = nil
+		}
+		if byedpiBypassCleanup != nil {
+			byedpiBypassCleanup()
+			byedpiBypassCleanup = nil
 		}
 		if tun != nil {
 			tun.Down()
@@ -211,8 +217,13 @@ func Run() error {
 				byedpi.stop()
 				byedpi = nil
 			}
-			// Windows has no cgroup bypass here; ciadpi's upstream is not yet excluded
-			// from the full tunnel (a WFP exclusion, like the vkturn underlay, is TODO).
+			if byedpiBypassCleanup != nil {
+				byedpiBypassCleanup()
+				byedpiBypassCleanup = nil
+			}
+			// byedpiup runs before xrayup, so the physical default gateway is still resolvable:
+			// /32-route the front's upstream server IPs off the tunnel it fronts.
+			byedpiBypassCleanup = wgwin.AddPhysicalBypassRoutes(cmd.ByeDPIBypassIPs)
 			b, err := startByeDPI(cmd.ByeDPIBin, cmd.ByeDPIArgs)
 			if err != nil {
 				log.Printf("byedpiup failed: %v", err)
@@ -225,6 +236,10 @@ func Run() error {
 			if byedpi != nil {
 				byedpi.stop()
 				byedpi = nil
+			}
+			if byedpiBypassCleanup != nil {
+				byedpiBypassCleanup()
+				byedpiBypassCleanup = nil
 			}
 			_ = enc.Encode(reply{OK: true})
 		case "stop":
