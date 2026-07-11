@@ -154,6 +154,17 @@
                       <span class="truncate text-[17px]">{{ p.title }}</span>
                     </div>
                     <span class="mt-0.5 block truncate text-sm text-wings-muted">{{ p.subtitle }}</span>
+                    <span
+                      v-if="p.traffic && (p.traffic.rx || p.traffic.tx)"
+                      class="mt-1 flex items-center gap-4 text-[13px] text-wings-muted"
+                    >
+                      <span class="inline-flex items-center gap-1">
+                        <ArrowDown :size="13" :style="{ color: FLOW_DOWN }" />{{ formatBytes(p.traffic.rx) }}
+                      </span>
+                      <span class="inline-flex items-center gap-1">
+                        <ArrowUp :size="13" :style="{ color: FLOW_UP }" />{{ formatBytes(p.traffic.tx) }}
+                      </span>
+                    </span>
                   </button>
                   <SamsungSpinner v-if="pending[p.id]" class="shrink-0" />
                   <span
@@ -186,7 +197,17 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { Bookmark, Check, ChevronRight, ClipboardPaste, RefreshCw, Star, Trash2 } from 'lucide-vue-next';
+import {
+  ArrowDown,
+  ArrowUp,
+  Bookmark,
+  Check,
+  ChevronRight,
+  ClipboardPaste,
+  RefreshCw,
+  Star,
+  Trash2,
+} from 'lucide-vue-next';
 import { Clipboard, Events } from '@wailsio/runtime';
 import {
   ConnectionService,
@@ -221,9 +242,12 @@ const linkText = ref('');
 const activeFilter = ref('all'); // all | favorites | <subscriptionId>
 const pings = reactive({}); // profileId -> delayMs (from the last test)
 const pending = reactive({}); // profileId -> true while its test is in flight
+const traffics = ref({}); // profileId -> { rx, tx } cumulative bytes
+const FLOW_DOWN = '#16b877';
+const FLOW_UP = '#2f7ff0';
 const networkBackendOptions = [
-  { value: 'vk_turn', label: 'VK TURN' },
   { value: 'xray', label: 'Xray' },
+  { value: 'vk_turn', label: 'VK TURN' },
 ];
 const subBackendOptions = [
   { value: 'wg', label: 'WireGuard' },
@@ -242,11 +266,24 @@ function apply(result) {
   xrayProfiles.value = result.xrayProfiles ?? [];
   xrayActiveId.value = result.xrayActiveId ?? '';
   subscriptions.value = result.subscriptions ?? [];
+  traffics.value = result.traffic ?? {};
   // Adopt the persisted test results (unless a live test is streaming right now).
   if (!testing.value) {
     Object.keys(pings).forEach((k) => delete pings[k]);
     Object.assign(pings, result.xrayPings ?? {});
   }
+}
+
+function formatBytes(n) {
+  if (!n) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
 // All items for the current backend, mapped to a common list shape (with the last ping).
@@ -259,6 +296,7 @@ const allItems = computed(() => {
       favorite: p.favorite,
       subscriptionId: p.subscriptionId || '',
       ping: pings[p.id],
+      traffic: traffics.value[p.id],
     }));
   }
   return profiles.value
@@ -270,6 +308,7 @@ const allItems = computed(() => {
       favorite: p.favorite,
       subscriptionId: '',
       ping: undefined,
+      traffic: traffics.value[p.id],
     }));
 });
 
