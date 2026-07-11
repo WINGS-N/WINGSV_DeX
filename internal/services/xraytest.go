@@ -10,8 +10,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wailsapp/wails/v3/pkg/application"
+
 	"github.com/WINGS-N/wingsv-dex/internal/config"
 	"github.com/WINGS-N/wingsv-dex/internal/xray"
+)
+
+// Test result events: one XrayTestResultEvent per node as its measurement lands (so the
+// Profiles screen can fill badges in and run a per-row loader on the rest), then
+// XrayTestDoneEvent when the whole run finishes.
+const (
+	XrayTestResultEvent = "xraytest:result"
+	XrayTestDoneEvent   = "xraytest:done"
 )
 
 // XrayTestService measures per-node latency for the Profiles screen: TCPing (a raw TCP
@@ -19,12 +29,16 @@ import (
 type XrayTestService struct {
 	store   *config.Store
 	exePath string
+	app     *application.App
 }
 
 // NewXrayTestService wires the test service to the store and app executable path.
 func NewXrayTestService(store *config.Store, exePath string) *XrayTestService {
 	return &XrayTestService{store: store, exePath: exePath}
 }
+
+// SetApp attaches the app so per-node results can be streamed to the frontend.
+func (s *XrayTestService) SetApp(app *application.App) { s.app = app }
 
 // PingResult is one node's measured delay in milliseconds; -1 means the test failed.
 type PingResult struct {
@@ -34,35 +48,47 @@ type PingResult struct {
 
 const probeURL = "https://www.gstatic.com/generate_204"
 
-// TCPingAll connects to every Xray node's address:port and reports the connect time.
-func (s *XrayTestService) TCPingAll() []PingResult {
-	return s.runAll(16, func(p config.XrayProfile) int64 { return tcping(p) })
-}
-
-// RealDelayAll measures the real HTTP round-trip through each node's proxy. It is heavier
-// than TCPing (each probe spins up an xray instance), so concurrency is lower.
-func (s *XrayTestService) RealDelayAll() []PingResult {
-	bin := xrayBinaryPath(s.exePath)
-	return s.runAll(8, func(p config.XrayProfile) int64 { return s.realDelay(bin, p) })
-}
-
-// runAll fans the measure function out over all Xray profiles with a concurrency cap.
-func (s *XrayTestService) runAll(limit int, measure func(config.XrayProfile) int64) []PingResult {
+// Start kicks off a test ("tcping" | "real") in the background over every Xray node and
+// returns the ids being tested so the UI can show a loader on each until its result event
+// arrives. Results stream via XrayTestResultEvent; XrayTestDoneEvent marks completion.
+func (s *XrayTestService) Start(kind string) []string {
 	profiles := s.store.XrayList()
-	results := make([]PingResult, len(profiles))
+	ids := make([]string, len(profiles))
+	for i, p := range profiles {
+		ids[i] = p.ID
+	}
+	limit := 16
+	measure := func(p config.XrayProfile) int64 { return tcping(p) }
+	if kind == "real" {
+		bin := xrayBinaryPath(s.exePath)
+		limit = 8
+		measure = func(p config.XrayProfile) int64 { return s.realDelay(bin, p) }
+	}
+	go s.run(profiles, limit, measure)
+	return ids
+}
+
+// run fans the measure function out over all nodes with a concurrency cap, emitting each
+// result as it completes.
+func (s *XrayTestService) run(profiles []config.XrayProfile, limit int, measure func(config.XrayProfile) int64) {
 	sem := make(chan struct{}, limit)
 	var wg sync.WaitGroup
-	for i, p := range profiles {
+	for _, p := range profiles {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(i int, p config.XrayProfile) {
+		go func(p config.XrayProfile) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			results[i] = PingResult{ID: p.ID, DelayMs: measure(p)}
-		}(i, p)
+			delay := measure(p)
+			if s.app != nil {
+				s.app.Event.Emit(XrayTestResultEvent, PingResult{ID: p.ID, DelayMs: delay})
+			}
+		}(p)
 	}
 	wg.Wait()
-	return results
+	if s.app != nil {
+		s.app.Event.Emit(XrayTestDoneEvent, nil)
+	}
 }
 
 func tcping(p config.XrayProfile) int64 {
