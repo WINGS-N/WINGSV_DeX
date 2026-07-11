@@ -28,19 +28,18 @@ defineProps({
   justify-content: center;
 }
 
-/* The four dots orbit the loader box's top-left origin, so centring the 11.25px box
-   leaves the cluster reading shifted up-left. Give it a fixed box and pin the loader
-   origin to that box's centre so the visible cluster is what gets centred. */
+/* Flex-centre the loader box so it spins around its own centre. top/left:50% offset it by
+   its size, and translate cannot pull it back because the rotate animation owns transform. */
 .loading-dots {
-  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 30px;
   height: 30px;
   flex-shrink: 0;
 }
 
 .loading-dots :deep(.samsung-loader) {
-  position: absolute;
-  top: 50%;
-  left: 50%;
+  position: relative;
 }
 </style>
