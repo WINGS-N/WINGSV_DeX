@@ -5,11 +5,14 @@
     <div class="px-4">
       <SamsungCard kicker="Действия">
         <div class="divide-y divide-wings-divider">
-          <div class="flex flex-col py-3.5">
-            <span class="text-[17px]">Сетевой backend</span>
-            <span class="mt-0.5 text-sm text-wings-muted">VK TURN</span>
-          </div>
           <OneuiSelect
+            label="Сетевой backend"
+            :model-value="networkBackend"
+            :options="networkBackendOptions"
+            @update:model-value="setNetworkBackend"
+          />
+          <OneuiSelect
+            v-if="!isXray"
             label="Под-backend"
             :model-value="subBackend"
             :options="subBackendOptions"
@@ -36,7 +39,7 @@
           <textarea
             v-model="linkText"
             rows="3"
-            placeholder="wingsv://..."
+            :placeholder="isXray ? 'vless://...' : 'wingsv://...'"
             class="w-full resize-none rounded-xl border border-wings-divider bg-wings-input px-3 py-2 font-mono text-sm text-wings-text outline-none placeholder:text-wings-muted focus:border-wings-inputLine"
           ></textarea>
           <div class="flex gap-2">
@@ -57,7 +60,7 @@
 
         <SamsungSectionLoader v-if="loading" />
 
-        <p v-else-if="profiles.length === 0" class="py-8 text-center text-sm text-wings-muted">Профилей пока нет</p>
+        <p v-else-if="items.length === 0" class="py-8 text-center text-sm text-wings-muted">Профилей пока нет</p>
 
         <template v-else>
           <div class="mb-3 flex flex-wrap items-center gap-2">
@@ -83,15 +86,13 @@
 
           <SamsungCard class="!p-0">
             <div class="divide-y divide-wings-divider">
-              <div v-for="p in filteredProfiles" :key="p.id" class="flex items-center gap-3 px-4 py-3.5">
+              <div v-for="p in filteredItems" :key="p.id" class="flex items-center gap-3 px-4 py-3.5">
                 <button type="button" class="min-w-0 flex-1 text-left" @click="activate(p.id)">
                   <div class="flex items-center gap-2">
-                    <Check v-if="p.id === activeId" :size="16" class="shrink-0 text-emerald-400" />
+                    <Check v-if="p.id === currentActiveId" :size="16" class="shrink-0 text-emerald-400" />
                     <span class="truncate text-[17px]">{{ p.title }}</span>
                   </div>
-                  <span class="mt-0.5 block truncate text-sm text-wings-muted">
-                    {{ p.vkTurnEndpoint }} ({{ transportLabel(p.transportKind) }})
-                  </span>
+                  <span class="mt-0.5 block truncate text-sm text-wings-muted">{{ p.subtitle }}</span>
                 </button>
                 <button type="button" aria-label="В избранное" class="shrink-0 p-1" @click="toggleFavorite(p.id)">
                   <Star :size="20" :class="p.favorite ? 'fill-wings-accent text-wings-accent' : 'text-wings-muted'" />
@@ -127,30 +128,60 @@ import SamsungSectionLoader from '@/components/layout/SamsungSectionLoader.vue';
 
 const profiles = ref([]);
 const activeId = ref('');
+const xrayProfiles = ref([]);
+const xrayActiveId = ref('');
+const networkBackend = ref('vk_turn');
 const loading = ref(true);
 const busy = ref(false);
 const error = ref('');
 const showImport = ref(false);
 const linkText = ref('');
 const activeFilter = ref('all'); // all | favorites
+const networkBackendOptions = [
+  { value: 'vk_turn', label: 'VK TURN' },
+  { value: 'xray', label: 'Xray' },
+];
 const subBackendOptions = [
   { value: 'wg', label: 'WireGuard' },
   { value: 'awg', label: 'AmneziaWG' },
 ];
 const subBackend = ref('wg');
 
+const isXray = computed(() => networkBackend.value === 'xray');
+const currentActiveId = computed(() => (isXray.value ? xrayActiveId.value : activeId.value));
+
 function apply(result) {
   profiles.value = result.profiles ?? [];
   activeId.value = result.activeId ?? '';
   subBackend.value = result.subBackend || 'wg';
+  networkBackend.value = result.networkBackend || 'vk_turn';
+  xrayProfiles.value = result.xrayProfiles ?? [];
+  xrayActiveId.value = result.xrayActiveId ?? '';
 }
 
-// Only profiles whose transport matches the selected sub-backend are shown, with the
-// favorites filter on top.
-const transportProfiles = computed(() => profiles.value.filter((p) => (p.transportKind || 'wg') === subBackend.value));
-const hasFavorites = computed(() => transportProfiles.value.some((p) => p.favorite));
-const filteredProfiles = computed(() =>
-  activeFilter.value === 'favorites' ? transportProfiles.value.filter((p) => p.favorite) : transportProfiles.value,
+// Map each backend's stored profiles to a common list shape the template renders.
+const items = computed(() => {
+  if (isXray.value) {
+    return xrayProfiles.value.map((p) => ({
+      id: p.id,
+      title: p.title,
+      subtitle: p.port ? `${p.address}:${p.port}` : p.address,
+      favorite: p.favorite,
+    }));
+  }
+  return profiles.value
+    .filter((p) => (p.transportKind || 'wg') === subBackend.value)
+    .map((p) => ({
+      id: p.id,
+      title: p.title,
+      subtitle: `${p.vkTurnEndpoint} (${transportLabel(p.transportKind)})`,
+      favorite: p.favorite,
+    }));
+});
+
+const hasFavorites = computed(() => items.value.some((p) => p.favorite));
+const filteredItems = computed(() =>
+  activeFilter.value === 'favorites' ? items.value.filter((p) => p.favorite) : items.value,
 );
 
 // Fall back to "all" when the favorites filter is active and no favorites remain.
@@ -162,6 +193,11 @@ function chipClass(id) {
   return activeFilter.value === id
     ? 'border-transparent bg-wings-accent text-white'
     : 'border-wings-divider bg-wings-surface text-wings-muted hover:text-wings-text';
+}
+
+async function setNetworkBackend(kind) {
+  apply(await ProfilesService.SetNetworkBackend(kind));
+  activeFilter.value = 'all';
 }
 
 // Returns true when the mode may be entered. AmneziaWG is blocked (with an install
@@ -206,16 +242,20 @@ async function importLink(link) {
   busy.value = true;
   error.value = '';
   try {
-    apply(await ProfilesService.ImportLink(value));
+    if (isXray.value) {
+      apply(await ProfilesService.ImportXray(value));
+    } else {
+      apply(await ProfilesService.ImportLink(value));
+      // Switch the shown backend to the imported profile's transport - unless it is
+      // AmneziaWG and the tooling is missing, which prompts to install and stays put.
+      const active = profiles.value.find((p) => p.id === activeId.value);
+      const kind = active?.transportKind || 'wg';
+      if (kind !== subBackend.value && (await ensureSubBackendAllowed(kind))) {
+        apply(await ProfilesService.SetSubBackend(kind));
+      }
+    }
     linkText.value = '';
     showImport.value = false;
-    // Switch the shown backend to the imported profile's transport - unless it is
-    // AmneziaWG and the tooling is missing, which prompts to install and stays put.
-    const active = profiles.value.find((p) => p.id === activeId.value);
-    const kind = active?.transportKind || 'wg';
-    if (kind !== subBackend.value && (await ensureSubBackendAllowed(kind))) {
-      apply(await ProfilesService.SetSubBackend(kind));
-    }
   } catch (e) {
     error.value = String(e?.message ?? e ?? 'Не удалось импортировать ссылку');
   } finally {
@@ -236,24 +276,24 @@ async function pasteAndImport() {
 }
 
 async function activate(id) {
-  apply(await ProfilesService.Activate(id));
+  apply(isXray.value ? await ProfilesService.XrayActivate(id) : await ProfilesService.Activate(id));
 }
 
 async function toggleFavorite(id) {
-  apply(await ProfilesService.ToggleFavorite(id));
+  apply(isXray.value ? await ProfilesService.XrayToggleFavorite(id) : await ProfilesService.ToggleFavorite(id));
 }
 
 async function remove(id) {
-  const profile = profiles.value.find((p) => p.id === id);
+  const item = items.value.find((p) => p.id === id);
   const ok = await confirm({
     title: 'Удалить профиль',
-    message: profile ? `Удалить профиль «${profile.title}»?` : 'Удалить профиль?',
+    message: item ? `Удалить профиль «${item.title}»?` : 'Удалить профиль?',
     confirmText: 'Удалить',
     cancelText: 'Отмена',
     danger: true,
   });
   if (!ok) return;
-  apply(await ProfilesService.Remove(id));
+  apply(isXray.value ? await ProfilesService.XrayRemove(id) : await ProfilesService.Remove(id));
 }
 
 onMounted(refresh);
