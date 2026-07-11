@@ -80,13 +80,10 @@ func (s *ConnectionService) runStatsPoller(ctx context.Context, read func() (int
 	}()
 }
 
-// xrayTrafficStats reads the xray TUN's counters. On Windows the wintun device lives in the
-// elevated helper without a sysfs path, so stats are unavailable there for now.
+// xrayTrafficStats reads the xray TUN's counters via the platform's interface-counter source
+// (sysfs on Linux, GetIfEntry2 on Windows).
 func xrayTrafficStats() (int64, int64, bool) {
-	if runtime.GOOS == "windows" {
-		return 0, 0, false
-	}
-	return wgInterfaceStats(xray.TunDeviceName)
+	return interfaceCounters(xray.TunDeviceName)
 }
 
 // IPInfo returns the last looked-up exit IP info.
