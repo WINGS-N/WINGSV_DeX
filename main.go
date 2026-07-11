@@ -107,6 +107,7 @@ func main() {
 	aboutSvc.SetApp(app)
 	subscriptionSvc.SetApp(app)
 	subscriptionSvc.StartAutoUpdate()
+	xrayTestSvc.SetApp(app)
 	logStore.SetListener(func(channel, line string) {
 		app.Event.Emit(services.LogLineEvent, services.LogLine{Channel: channel, Line: line})
 	})
