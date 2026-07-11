@@ -18,6 +18,48 @@
             :options="subBackendOptions"
             @update:model-value="setSubBackend"
           />
+
+          <template v-if="isXray">
+            <button
+              type="button"
+              class="flex w-full items-center justify-between py-3.5 text-left"
+              @click="openOverlay('subscriptions')"
+            >
+              <span class="flex flex-col">
+                <span class="text-[17px]">Подписки</span>
+                <span class="mt-0.5 text-sm text-wings-muted">Управление URL подписок и их обновлением</span>
+              </span>
+              <ChevronRight :size="20" class="shrink-0 text-wings-muted" />
+            </button>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between py-3.5 text-left"
+              :disabled="refreshingSubs"
+              @click="refreshSubs"
+            >
+              <span class="flex flex-col">
+                <span class="text-[17px]">Обновить подписки</span>
+                <span class="mt-0.5 text-sm text-wings-muted">Последнее обновление: {{ lastUpdatedText }}</span>
+              </span>
+              <RefreshCw :size="20" class="shrink-0 text-wings-muted" :class="{ 'animate-spin': refreshingSubs }" />
+            </button>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between py-3.5 text-left"
+              @click="showTest = !showTest"
+            >
+              <span class="flex flex-col">
+                <span class="text-[17px]">Тест подключения</span>
+                <span class="mt-0.5 text-sm text-wings-muted">Задержка для всех профилей текущего фильтра</span>
+              </span>
+              <ChevronRight
+                :size="20"
+                class="text-wings-muted transition-transform"
+                :class="{ 'rotate-90': showTest }"
+              />
+            </button>
+          </template>
+
           <button
             type="button"
             class="flex w-full items-center justify-between py-3.5 text-left"
@@ -33,6 +75,11 @@
               :class="{ 'rotate-90': showImport }"
             />
           </button>
+        </div>
+
+        <div v-if="showTest && isXray" class="mt-3 flex gap-2">
+          <SamsungButton variant="secondary" :busy="testing" @click="runTest('tcping')">TCPing</SamsungButton>
+          <SamsungButton variant="secondary" :busy="testing" @click="runTest('real')">Real Delay</SamsungButton>
         </div>
 
         <div v-if="showImport" class="mt-3 flex flex-col gap-2">
@@ -60,7 +107,7 @@
 
         <SamsungSectionLoader v-if="loading" />
 
-        <p v-else-if="items.length === 0" class="py-8 text-center text-sm text-wings-muted">Профилей пока нет</p>
+        <p v-else-if="allItems.length === 0" class="py-8 text-center text-sm text-wings-muted">Профилей пока нет</p>
 
         <template v-else>
           <div class="mb-3 flex flex-wrap items-center gap-2">
@@ -82,30 +129,52 @@
             >
               <Bookmark :size="18" :class="{ 'fill-current': activeFilter === 'favorites' }" />
             </button>
+            <button
+              v-for="chip in subscriptionChips"
+              :key="chip.id"
+              type="button"
+              class="inline-flex h-9 items-center rounded-full border px-4 text-[15px] transition-colors"
+              :class="chipClass(chip.id)"
+              @click="activeFilter = chip.id"
+            >
+              {{ chip.title }}
+            </button>
           </div>
 
           <SamsungCard class="!p-0">
             <div class="divide-y divide-wings-divider">
-              <div v-for="p in filteredItems" :key="p.id" class="flex items-center gap-3 px-4 py-3.5">
-                <button type="button" class="min-w-0 flex-1 text-left" @click="activate(p.id)">
-                  <div class="flex items-center gap-2">
-                    <Check v-if="p.id === currentActiveId" :size="16" class="shrink-0 text-emerald-400" />
-                    <span class="truncate text-[17px]">{{ p.title }}</span>
-                  </div>
-                  <span class="mt-0.5 block truncate text-sm text-wings-muted">{{ p.subtitle }}</span>
-                </button>
-                <button type="button" aria-label="В избранное" class="shrink-0 p-1" @click="toggleFavorite(p.id)">
-                  <Star :size="20" :class="p.favorite ? 'fill-wings-accent text-wings-accent' : 'text-wings-muted'" />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Удалить"
-                  class="shrink-0 p-1 text-wings-muted hover:text-wings-danger"
-                  @click="remove(p.id)"
-                >
-                  <Trash2 :size="18" />
-                </button>
-              </div>
+              <template v-for="group in groups" :key="group.key">
+                <div v-if="group.title" class="bg-wings-surface px-4 py-2 text-[13px] font-bold text-wings-text">
+                  {{ group.title }}
+                </div>
+                <div v-for="p in group.items" :key="p.id" class="flex items-center gap-3 px-4 py-3.5">
+                  <button type="button" class="min-w-0 flex-1 text-left" @click="activate(p.id)">
+                    <div class="flex items-center gap-2">
+                      <Check v-if="p.id === currentActiveId" :size="16" class="shrink-0 text-emerald-400" />
+                      <span class="truncate text-[17px]">{{ p.title }}</span>
+                    </div>
+                    <span class="mt-0.5 block truncate text-sm text-wings-muted">{{ p.subtitle }}</span>
+                  </button>
+                  <span
+                    v-if="p.ping !== undefined"
+                    class="shrink-0 rounded-full px-2.5 py-1 text-[13px] font-semibold"
+                    :class="pingClass(p.ping)"
+                  >
+                    {{ p.ping < 0 ? '—' : `${p.ping} ms` }}
+                  </span>
+                  <button type="button" aria-label="В избранное" class="shrink-0 p-1" @click="toggleFavorite(p.id)">
+                    <Star :size="20" :class="p.favorite ? 'fill-wings-accent text-wings-accent' : 'text-wings-muted'" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Удалить"
+                    class="shrink-0 p-1 text-wings-muted hover:text-wings-danger"
+                    @click="remove(p.id)"
+                  >
+                    <Trash2 :size="18" />
+                  </button>
+                </div>
+              </template>
             </div>
           </SamsungCard>
         </template>
@@ -115,11 +184,18 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
-import { Bookmark, Check, ChevronRight, ClipboardPaste, Star, Trash2 } from 'lucide-vue-next';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { Bookmark, Check, ChevronRight, ClipboardPaste, RefreshCw, Star, Trash2 } from 'lucide-vue-next';
 import { Clipboard } from '@wailsio/runtime';
-import { ConnectionService, ProfilesService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
+import {
+  ConnectionService,
+  ProfilesService,
+  SubscriptionService,
+  XrayTestService,
+} from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import { confirm } from '@/stores/confirm.js';
+import { openOverlay } from '@/stores/nav.js';
+import { showToast } from '@/stores/toast.js';
 import OneuiSelect from '@/components/controls/OneuiSelect.vue';
 import AppHeader from '@/components/layout/AppHeader.vue';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
@@ -130,13 +206,18 @@ const profiles = ref([]);
 const activeId = ref('');
 const xrayProfiles = ref([]);
 const xrayActiveId = ref('');
+const subscriptions = ref([]);
 const networkBackend = ref('vk_turn');
 const loading = ref(true);
 const busy = ref(false);
 const error = ref('');
 const showImport = ref(false);
+const showTest = ref(false);
+const testing = ref(false);
+const refreshingSubs = ref(false);
 const linkText = ref('');
-const activeFilter = ref('all'); // all | favorites
+const activeFilter = ref('all'); // all | favorites | <subscriptionId>
+const pings = reactive({}); // profileId -> delayMs (from the last test)
 const networkBackendOptions = [
   { value: 'vk_turn', label: 'VK TURN' },
   { value: 'xray', label: 'Xray' },
@@ -157,16 +238,19 @@ function apply(result) {
   networkBackend.value = result.networkBackend || 'vk_turn';
   xrayProfiles.value = result.xrayProfiles ?? [];
   xrayActiveId.value = result.xrayActiveId ?? '';
+  subscriptions.value = result.subscriptions ?? [];
 }
 
-// Map each backend's stored profiles to a common list shape the template renders.
-const items = computed(() => {
+// All items for the current backend, mapped to a common list shape (with the last ping).
+const allItems = computed(() => {
   if (isXray.value) {
     return xrayProfiles.value.map((p) => ({
       id: p.id,
       title: p.title,
       subtitle: p.port ? `${p.address}:${p.port}` : p.address,
       favorite: p.favorite,
+      subscriptionId: p.subscriptionId || '',
+      ping: pings[p.id],
     }));
   }
   return profiles.value
@@ -176,17 +260,75 @@ const items = computed(() => {
       title: p.title,
       subtitle: `${p.vkTurnEndpoint} (${transportLabel(p.transportKind)})`,
       favorite: p.favorite,
+      subscriptionId: '',
+      ping: undefined,
     }));
 });
 
-const hasFavorites = computed(() => items.value.some((p) => p.favorite));
-const filteredItems = computed(() =>
-  activeFilter.value === 'favorites' ? items.value.filter((p) => p.favorite) : items.value,
-);
+const hasFavorites = computed(() => allItems.value.some((p) => p.favorite));
 
-// Fall back to "all" when the favorites filter is active and no favorites remain.
-watch(hasFavorites, (has) => {
-  if (!has && activeFilter.value === 'favorites') activeFilter.value = 'all';
+// One chip per subscription that actually has nodes, plus a "Свои" chip for manual nodes.
+const subscriptionChips = computed(() => {
+  if (!isXray.value) return [];
+  const present = new Set(allItems.value.map((p) => p.subscriptionId));
+  const chips = subscriptions.value
+    .filter((s) => present.has(s.id))
+    .map((s) => ({ id: s.id, title: s.title || s.url }));
+  if (present.has('')) chips.push({ id: 'manual', title: 'Свои' });
+  return chips;
+});
+
+// Filter the items by the active chip.
+const filteredItems = computed(() => {
+  if (activeFilter.value === 'all') return allItems.value;
+  if (activeFilter.value === 'favorites') return allItems.value.filter((p) => p.favorite);
+  if (activeFilter.value === 'manual') return allItems.value.filter((p) => !p.subscriptionId);
+  return allItems.value.filter((p) => p.subscriptionId === activeFilter.value);
+});
+
+// Best-to-worst by ping once a test has run (tested first, failures and untested last).
+function sortByPing(items) {
+  if (!hasPings.value) return items;
+  return [...items].sort((a, b) => rank(a.ping) - rank(b.ping));
+}
+function rank(ping) {
+  if (ping === undefined) return Number.MAX_SAFE_INTEGER;
+  if (ping < 0) return Number.MAX_SAFE_INTEGER - 1;
+  return ping;
+}
+const hasPings = computed(() => Object.keys(pings).length > 0);
+
+// Under "Все" the xray list is grouped by subscription; otherwise it is a single group.
+const groups = computed(() => {
+  if (!isXray.value || activeFilter.value !== 'all') {
+    return [{ key: 'flat', title: '', items: sortByPing(filteredItems.value) }];
+  }
+  const out = [];
+  for (const sub of subscriptions.value) {
+    const items = allItems.value.filter((p) => p.subscriptionId === sub.id);
+    if (items.length) out.push({ key: sub.id, title: sub.title || sub.url, items: sortByPing(items) });
+  }
+  const manual = allItems.value.filter((p) => !p.subscriptionId);
+  if (manual.length) out.push({ key: 'manual', title: 'Свои профили', items: sortByPing(manual) });
+  return out;
+});
+
+const lastUpdatedText = computed(() => {
+  const times = subscriptions.value.map((s) => s.lastUpdatedAt || 0).filter(Boolean);
+  if (!times.length) return 'никогда';
+  return new Date(Math.max(...times) * 1000).toLocaleString();
+});
+
+// Fall back to "Все" when the active chip no longer has any items.
+watch([hasFavorites, subscriptionChips], () => {
+  if (activeFilter.value === 'favorites' && !hasFavorites.value) activeFilter.value = 'all';
+  if (
+    activeFilter.value !== 'all' &&
+    activeFilter.value !== 'favorites' &&
+    !subscriptionChips.value.some((c) => c.id === activeFilter.value)
+  ) {
+    activeFilter.value = 'all';
+  }
 });
 
 function chipClass(id) {
@@ -195,13 +337,18 @@ function chipClass(id) {
     : 'border-wings-divider bg-wings-surface text-wings-muted hover:text-wings-text';
 }
 
+function pingClass(ping) {
+  if (ping < 0) return 'bg-red-500/20 text-red-400';
+  if (ping < 150) return 'bg-emerald-500/20 text-emerald-400';
+  if (ping < 400) return 'bg-amber-500/20 text-amber-400';
+  return 'bg-red-500/20 text-red-400';
+}
+
 async function setNetworkBackend(kind) {
   apply(await ProfilesService.SetNetworkBackend(kind));
   activeFilter.value = 'all';
 }
 
-// Returns true when the mode may be entered. AmneziaWG is blocked (with an install
-// prompt) when its tooling is missing, so the app never enters an unusable mode.
 async function ensureSubBackendAllowed(kind) {
   if (kind !== 'awg') return true;
   try {
@@ -215,12 +362,12 @@ async function ensureSubBackendAllowed(kind) {
     });
     return false;
   } catch {
-    return true; // cannot check (pure-vite) -> allow
+    return true;
   }
 }
 
 async function setSubBackend(kind) {
-  if (!(await ensureSubBackendAllowed(kind))) return; // select reverts to current
+  if (!(await ensureSubBackendAllowed(kind))) return;
   apply(await ProfilesService.SetSubBackend(kind));
 }
 
@@ -236,17 +383,41 @@ async function refresh() {
   }
 }
 
+async function refreshSubs() {
+  refreshingSubs.value = true;
+  try {
+    const res = await SubscriptionService.RefreshAll();
+    apply(await ProfilesService.List());
+    showToast(`Обновлено узлов: ${res.updated}`, { type: 'success' });
+  } catch {
+    showToast('Не удалось обновить подписки', { type: 'warn' });
+  } finally {
+    refreshingSubs.value = false;
+  }
+}
+
+async function runTest(kind) {
+  testing.value = true;
+  try {
+    const results = kind === 'real' ? await XrayTestService.RealDelayAll() : await XrayTestService.TCPingAll();
+    (results ?? []).forEach((r) => {
+      pings[r.id] = r.delayMs;
+    });
+    showTest.value = false;
+  } catch {
+    showToast('Тест не удался', { type: 'warn' });
+  } finally {
+    testing.value = false;
+  }
+}
+
 async function importLink(link) {
   const value = (link ?? '').trim();
   if (!value) return;
   busy.value = true;
   error.value = '';
   try {
-    // One smart import understands wingsv:// (VK TURN or Xray, single or many), vless://
-    // and other share links, and http(s) subscription URLs - switching backend as needed.
     apply(await ProfilesService.SmartImport(value));
-    // For a VK TURN import, follow the imported profile's transport (unless AmneziaWG
-    // tooling is missing, which prompts to install and stays put).
     if (!isXray.value) {
       const active = profiles.value.find((p) => p.id === activeId.value);
       const kind = active?.transportKind || 'wg';
@@ -284,7 +455,7 @@ async function toggleFavorite(id) {
 }
 
 async function remove(id) {
-  const item = items.value.find((p) => p.id === id);
+  const item = allItems.value.find((p) => p.id === id);
   const ok = await confirm({
     title: 'Удалить профиль',
     message: item ? `Удалить профиль «${item.title}»?` : 'Удалить профиль?',
