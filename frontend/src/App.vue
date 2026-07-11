@@ -3,6 +3,7 @@
     <VkTurnSettingsView v-if="overlay === 'vkturn-settings'" />
     <XraySettingsView v-else-if="overlay === 'xray-settings'" />
     <SubscriptionsView v-else-if="overlay === 'subscriptions'" />
+    <ByeDpiSettingsView v-else-if="overlay === 'byedpi-settings'" />
     <LogsView v-else-if="overlay === 'logs'" />
     <AboutView v-else-if="overlay === 'about'" />
 
@@ -51,6 +52,7 @@ import VkTurnSettingsView from '@/views/VkTurnSettingsView.vue';
 import LogsView from '@/views/LogsView.vue';
 import XraySettingsView from '@/views/XraySettingsView.vue';
 import SubscriptionsView from '@/views/SubscriptionsView.vue';
+import ByeDpiSettingsView from '@/views/ByeDpiSettingsView.vue';
 import AboutView from '@/views/AboutView.vue';
 import ConfirmDialog from '@/components/layout/ConfirmDialog.vue';
 import ToastHost from '@/components/layout/ToastHost.vue';
