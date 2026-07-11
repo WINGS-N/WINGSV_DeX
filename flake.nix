@@ -1,5 +1,5 @@
 {
-  description = "Local Nix flake for WINGSV_Dex";
+  description = "Local Nix flake for WINGSV_DeX";
 
   inputs = {
     # Local store path avoids network during local experiments in this environment.
@@ -58,7 +58,7 @@
         shellHook = ''
           export CGO_ENABLED=1
           export GOFLAGS="-buildvcs=false"
-          echo "WINGSV_Dex Nix dev shell"
+          echo "WINGSV_DeX Nix dev shell"
           echo "Try: task build:vkturn && task build && task run"
         '';
       };
