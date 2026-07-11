@@ -68,6 +68,7 @@ func main() {
 	connectionSvc := services.NewConnectionService(store, logStore, manager, vkAuthSvc, exePath)
 	aboutSvc := services.NewAboutService(func() { manager.Stop() })
 	subscriptionSvc := services.NewSubscriptionService(store)
+	xrayTestSvc := services.NewXrayTestService(store, exePath)
 
 	app := application.New(application.Options{
 		Name:        "WINGS V DeX",
@@ -80,6 +81,7 @@ func main() {
 			application.NewService(services.NewLogsService(logStore)),
 			application.NewService(aboutSvc),
 			application.NewService(subscriptionSvc),
+			application.NewService(xrayTestSvc),
 			application.NewService(services.NewOnboardingService(configDir)),
 			application.NewService(services.NewMusicService()),
 			application.NewService(services.NewAvatarService(configDir)),

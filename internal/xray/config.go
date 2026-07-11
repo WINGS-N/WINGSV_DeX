@@ -30,6 +30,24 @@ type Options struct {
 	ByeDPIFrontSocks string
 }
 
+// ProbeConfig builds a minimal proxy-only config for a single node: a no-auth SOCKS inbound
+// on socksPort plus the node's outbound, used by the Real Delay test to ping through it.
+func ProbeConfig(xrayBin, rawLink string, socksPort int) (string, error) {
+	s := config.DefaultXraySettings()
+	s.RuntimeMode = "proxy"
+	s.SniffingEnabled = false
+	s.LocalProxyEnabled = true
+	s.LocalProxyAuthEnabled = false
+	s.LocalProxyListenAddress = "127.0.0.1"
+	s.LocalProxyPort = socksPort
+	return Build(Options{
+		XrayBin:    xrayBin,
+		Profile:    config.XrayProfile{RawLink: rawLink},
+		Settings:   s,
+		IncludeTun: false,
+	})
+}
+
 // Build assembles the full xray config JSON for the given profile and settings.
 func Build(opts Options) (string, error) {
 	if strings.TrimSpace(opts.Profile.RawLink) == "" {
