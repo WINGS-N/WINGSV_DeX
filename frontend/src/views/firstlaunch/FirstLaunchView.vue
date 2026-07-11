@@ -24,10 +24,12 @@
           :is="current.comp"
           :key="stepId"
           v-bind="current.props"
+          :mode="autoMode"
           @next="handleNext"
           @skip="complete"
           @choice="handleChoice"
           @import="handleVkImport"
+          @mode="handleAutoMode"
           @finish="complete"
         />
       </Transition>
@@ -37,7 +39,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { ShieldCheck, Radar, ListChecks, ScanSearch } from 'lucide-vue-next';
+import { ShieldCheck } from 'lucide-vue-next';
 import { Clipboard } from '@wailsio/runtime';
 import { ProfilesService, OnboardingService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import { closeOnboarding } from '@/stores/onboarding.js';
@@ -46,6 +48,9 @@ import IntroStep from '@/views/firstlaunch/IntroStep.vue';
 import ConnectionStep from '@/views/firstlaunch/ConnectionStep.vue';
 import VkTurnStep from '@/views/firstlaunch/VkTurnStep.vue';
 import XrayStep from '@/views/firstlaunch/XrayStep.vue';
+import FirstLaunchAutoSearchSettings from '@/views/firstlaunch/FirstLaunchAutoSearchSettings.vue';
+import FirstLaunchAutoSearchMode from '@/views/firstlaunch/FirstLaunchAutoSearchMode.vue';
+import FirstLaunchAutoSearchRun from '@/views/firstlaunch/FirstLaunchAutoSearchRun.vue';
 import StubStep from '@/views/firstlaunch/StubStep.vue';
 import DoneStep from '@/views/firstlaunch/DoneStep.vue';
 
@@ -64,27 +69,15 @@ const STEPS = {
   connection: { comp: ConnectionStep },
   vkturn: { comp: VkTurnStep },
   xray: { comp: XrayStep },
-  autosearch_settings: {
-    comp: StubStep,
-    props: {
-      title: 'Автопоиск',
-      subtitle: 'Автоматический подбор профилей появится в Dex позже.',
-      icon: Radar,
-    },
-  },
-  autosearch_mode: {
-    comp: StubStep,
-    props: { title: 'Режим автопоиска', subtitle: 'Выбор режима проверки появится в Dex позже.', icon: ListChecks },
-  },
-  autosearch_run: {
-    comp: StubStep,
-    props: { title: 'Проверка профилей', subtitle: 'Прогон профилей появится в Dex позже.', icon: ScanSearch },
-  },
+  autosearch_settings: { comp: FirstLaunchAutoSearchSettings },
+  autosearch_mode: { comp: FirstLaunchAutoSearchMode },
+  autosearch_run: { comp: FirstLaunchAutoSearchRun },
   done: { comp: DoneStep },
 };
 const ORDER = Object.keys(STEPS);
 
 const stepId = ref('intro');
+const autoMode = ref('standard');
 const current = computed(() => STEPS[stepId.value]);
 const parallaxY = computed(() => -ORDER.indexOf(stepId.value) * 10);
 
@@ -160,6 +153,11 @@ function handleNext() {
   };
   const to = map[stepId.value];
   if (to) goTo(to);
+}
+
+function handleAutoMode(mode) {
+  autoMode.value = mode;
+  goTo('autosearch_run');
 }
 
 function handleChoice(choice) {
