@@ -39,7 +39,7 @@
             type="button"
             class="flex-1 rounded-full py-4 text-[17px] font-semibold transition-colors"
             :class="
-              remaining > 0 ? 'cursor-default bg-white/70 text-neutral-500' : 'bg-white text-red-600 hover:bg-white/90'
+              remaining > 0 ? 'cursor-default bg-white/70 text-neutral-500' : 'bg-red-600 text-white hover:bg-red-500'
             "
             :disabled="remaining > 0"
             @click="settleConfirm(true)"
