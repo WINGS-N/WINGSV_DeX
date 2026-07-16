@@ -48,7 +48,10 @@
 
 Скачайте версию для своей системы со [страницы релизов](https://github.com/WINGS-N/WINGSV_DeX/releases):
 
-- **Linux** - `.deb` (Debian/Ubuntu), `.rpm` (Fedora), `.AppImage` (подойдёт любому дистрибутиву) или архив `.tar.gz`
+- **Linux** - `.deb` (Debian/Ubuntu), `.AppImage` (для остальных дистрибутивов) или архив `.tar.gz`.
+  `.AppImage` и `.tar.gz` рассчитывают на GTK4 и WebKitGTK 6.0 в системе - в большинстве
+  дистрибутивов они уже стоят, а если нет, ставятся из штатного репозитория (`gtk4` и
+  `webkitgtk-6.0`; в Debian/Ubuntu пакеты называются `libgtk-4-1` и `libwebkitgtk-6.0-4`).
 - **Windows** - установщик `...-setup.exe` или переносимая версия в `.zip`
 
 При подключении приложение один раз попросит повышение прав (pkexec на Linux, UAC на Windows) - это нужно, чтобы поднять VPN.
