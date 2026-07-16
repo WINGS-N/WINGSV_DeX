@@ -137,7 +137,10 @@ jobs:
             (cd cmd/xrayhelper && CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "$GITHUB_WORKSPACE/$out/xray.exe" .)
             (cd external/byedpi && { make clean >/dev/null 2>&1 || true; } && make windows CC=$triple-w64-mingw32-gcc)
             cp external/byedpi/ciadpi.exe "$out/byedpi.exe"
-            CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "$out/wingsv-dex.exe" .
+            # -H windowsgui marks the exe as GUI-subsystem; without it Windows opens a
+            # console window behind the app on every launch. The helpers stay console
+            # binaries and are spawned with CREATE_NO_WINDOW instead.
+            CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath -ldflags="-s -w -H windowsgui" -o "$out/wingsv-dex.exe" .
             cp "wintun/bin/$arch/wintun.dll" "$out/wintun.dll"
             (cd "$out" && zip -r "$GITHUB_WORKSPACE/dist/wingsv-dex-windows-$arch.zip" .)
           done
