@@ -19,6 +19,9 @@ permissions:
 
 env:
   WINTUN_VERSION: '0.14.1'
+  # byedpi is C, so the Windows payloads need a mingw cross-toolchain. llvm-mingw covers
+  # both amd64 and arm64; the distro mingw-w64 packages have no aarch64 target at all.
+  LLVM_MINGW_VERSION: '20260616'
 
 jobs:
   linux:
@@ -60,6 +63,9 @@ jobs:
         run: |
           mkdir -p bin
           (cd external/vk-turn-proxy && CGO_ENABLED=0 GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags="-s -w" -o "$GITHUB_WORKSPACE/bin/vkturn" ./client)
+          (cd cmd/xrayhelper && CGO_ENABLED=0 GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags="-s -w" -o "$GITHUB_WORKSPACE/bin/xray" .)
+          # Native build: each linux job already runs on its target arch.
+          (cd external/byedpi && make clean >/dev/null 2>&1 || true; make && cp ciadpi "$GITHUB_WORKSPACE/bin/byedpi")
           CGO_ENABLED=1 GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags="-s -w" -o bin/wingsv-dex .
       - name: Version
         id: v
@@ -72,7 +78,7 @@ jobs:
           mkdir -p dist
           nfpm pkg -p deb -f build/linux/nfpm.yaml -t "dist/wingsv-dex_${VERSION:-0.0.0}_${{ matrix.arch }}.deb"
           build/linux/appimage/build-appimage.sh ${{ matrix.aiarch }} bin dist
-          tar -C bin -czf "dist/wingsv-dex-linux-${{ matrix.arch }}.tar.gz" wingsv-dex vkturn
+          tar -C bin -czf "dist/wingsv-dex-linux-${{ matrix.arch }}.tar.gz" wingsv-dex vkturn xray byedpi
       - uses: actions/upload-artifact@v4
         with:
           name: linux-${{ matrix.arch }}
@@ -100,6 +106,11 @@ jobs:
           sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev nsis
           go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.113
           go install github.com/tc-hib/go-winres@latest
+      - name: Fetch llvm-mingw (byedpi cross-toolchain)
+        run: |
+          tc="llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-ubuntu-22.04-x86_64"
+          curl -fsSL "https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VERSION}/${tc}.tar.xz" | tar -xJ
+          echo "$GITHUB_WORKSPACE/$tc/bin" >> "$GITHUB_PATH"
       - name: Frontend
         run: |
           pnpm --dir frontend install --frozen-lockfile
@@ -121,7 +132,11 @@ jobs:
         run: |
           for arch in amd64 arm64; do
             out="dist/windows-$arch"; mkdir -p "$out"
+            case "$arch" in amd64) triple=x86_64 ;; arm64) triple=aarch64 ;; esac
             (cd external/vk-turn-proxy && CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "$GITHUB_WORKSPACE/$out/vkturn.exe" ./client)
+            (cd cmd/xrayhelper && CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "$GITHUB_WORKSPACE/$out/xray.exe" .)
+            (cd external/byedpi && { make clean >/dev/null 2>&1 || true; } && make windows CC=$triple-w64-mingw32-gcc)
+            cp external/byedpi/ciadpi.exe "$out/byedpi.exe"
             CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath -ldflags="-s -w" -o "$out/wingsv-dex.exe" .
             cp "wintun/bin/$arch/wintun.dll" "$out/wintun.dll"
             (cd "$out" && zip -r "$GITHUB_WORKSPACE/dist/wingsv-dex-windows-$arch.zip" .)
