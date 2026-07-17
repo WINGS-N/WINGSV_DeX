@@ -13,6 +13,8 @@ import (
 	"io"
 	"os"
 	"sync"
+
+	"github.com/WINGS-N/wingsv-dex/internal/xray"
 )
 
 // WGConfig mirrors wg.Config on the wire (matching json tags); the helper decodes it
@@ -64,8 +66,8 @@ type command struct {
 	DatDir     string `json:"datDir,omitempty"`
 	EnableIPv6 bool   `json:"enableIpv6,omitempty"`
 
-	// ByeDPI front: the helper spawns ciadpi into the bypass cgroup so its upstream
-	// egress skips the tunnel, and xray dials its local SOCKS as a DPI-bypass front.
+	// ByeDPI front: xray dials ciadpi's local SOCKS as a DPI-bypass front. Its upstream
+	// has to skip the tunnel it fronts, which the helper arranges per platform.
 	ByeDPIBin       string   `json:"byedpiBin,omitempty"`
 	ByeDPIArgs      []string `json:"byedpiArgs,omitempty"`
 	ByeDPIBypassIPs []string `json:"byedpiBypassIps,omitempty"` // windows: /32-route the front's server IPs off-tunnel
@@ -124,7 +126,9 @@ func (c *Controller) Start() error {
 	}
 	c.h = h
 	logLine(c.logw, "dataplane: sending start command protect_socket=%s fwmark=%d", c.protectSocket, c.fwmark)
-	if err := c.send(command{Cmd: "start", ProtectSocket: c.protectSocket, FwMark: c.fwmark}); err != nil {
+	// TunName lets the helper resolve the physical default route while ignoring a tun
+	// left behind by a session that died without teardown.
+	if err := c.send(command{Cmd: "start", ProtectSocket: c.protectSocket, FwMark: c.fwmark, TunName: xray.TunDeviceName}); err != nil {
 		c.stopLocked()
 		return err
 	}

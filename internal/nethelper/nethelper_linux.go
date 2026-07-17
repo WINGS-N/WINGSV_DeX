@@ -12,8 +12,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/WINGS-N/wingsv-dex/internal/wg"
+	"github.com/vishvananda/netlink"
 )
 
 // command is one control line the main app writes to the helper's stdin.
@@ -36,7 +38,7 @@ type command struct {
 
 	ByeDPIBin       string   `json:"byedpiBin"`       // path to bin/byedpi (ciadpi)
 	ByeDPIArgs      []string `json:"byedpiArgs"`      // ciadpi argv
-	ByeDPIBypassIPs []string `json:"byedpiBypassIps"` // windows-only; the cgroup handles bypass on Linux
+	ByeDPIBypassIPs []string `json:"byedpiBypassIps"` // windows-only; Linux marks the front's sockets instead
 }
 
 type reply struct {
@@ -56,6 +58,10 @@ func Run() error {
 
 	var protect *wg.ProtectServer
 	var cmark *wg.CgroupMark
+	var bypass *wg.MarkBypass
+	// Captured on start, before any tun exists, so the physical link is unambiguous.
+	var physical *netlink.Route
+	var fwmark int
 	var active *wg.Config
 	var appsCg *wg.CgroupMark
 	var matcher *wg.AppMatcher
@@ -81,6 +87,10 @@ func Run() error {
 		if byedpi != nil {
 			byedpi.stop()
 			byedpi = nil
+		}
+		if bypass != nil {
+			_ = bypass.Close()
+			bypass = nil
 		}
 		if active != nil {
 			_ = wg.Down(*active)
@@ -121,6 +131,10 @@ func Run() error {
 				continue
 			}
 			protect, cmark = p, cm
+			fwmark = cmd.FwMark
+			if physical, err = wg.PhysicalDefaultRoute(cmd.TunName); err != nil {
+				log.Printf("physical default route lookup failed: %v", err)
+			}
 			log.Printf("protect @%s + cgroup %s nft-mark up (fwmark 0x%x)", cmd.ProtectSocket, wg.VkturnCgroup, cmd.FwMark)
 			_ = enc.Encode(reply{OK: true})
 		case "cgadd":
@@ -227,18 +241,32 @@ func Run() error {
 				byedpi.stop()
 				byedpi = nil
 			}
-			b, err := startByeDPI(cmd.ByeDPIBin, cmd.ByeDPIArgs)
+			// The tun's default route outranks the physical one in the main table, so
+			// ciadpi's upstream would dial the node through the tunnel it fronts and loop
+			// back into the tun inbound. It marks its own sockets instead: the mark has to
+			// be set before connect, when the kernel picks the route and the source
+			// address. The cgroup nft mark cannot do this - it tags the packet after the
+			// fact, leaving a SYN that carries the tun's source address out the physical
+			// link, which never gets a reply.
+			args := cmd.ByeDPIArgs
+			if fwmark != 0 && physical != nil {
+				bp, err := wg.SetupMarkBypass(fwmark, physical)
+				if err != nil {
+					log.Printf("byedpiup mark bypass failed: %v", err)
+					_ = enc.Encode(reply{Error: err.Error()})
+					continue
+				}
+				if bypass != nil {
+					_ = bypass.Close()
+				}
+				bypass = bp
+				args = append(append([]string{}, args...), "--fwmark", strconv.Itoa(fwmark))
+			}
+			b, err := startByeDPI(cmd.ByeDPIBin, args)
 			if err != nil {
 				log.Printf("byedpiup failed: %v", err)
 				_ = enc.Encode(reply{Error: err.Error()})
 				continue
-			}
-			// Move ciadpi into the bypass cgroup so its upstream egress is fwmark-tagged
-			// and leaves the physical link instead of looping back into the tunnel it fronts.
-			if cmark != nil {
-				if err := cmark.Add(b.cmd.Process.Pid); err != nil {
-					log.Printf("byedpiup cgroup add failed: %v", err)
-				}
 			}
 			byedpi = b
 			log.Printf("byedpiup ok: pid=%d", b.cmd.Process.Pid)
@@ -247,6 +275,10 @@ func Run() error {
 			if byedpi != nil {
 				byedpi.stop()
 				byedpi = nil
+			}
+			if bypass != nil {
+				_ = bypass.Close()
+				bypass = nil
 			}
 			_ = enc.Encode(reply{OK: true})
 		case "stop":
