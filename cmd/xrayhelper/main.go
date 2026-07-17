@@ -110,7 +110,7 @@ func cmdConvert() error {
 	if conf == nil {
 		return errors.New("no outbound produced from input")
 	}
-	out, err := json.Marshal(conf)
+	out, err := marshalConfigWithoutNulls(conf)
 	if err != nil {
 		return err
 	}
@@ -128,6 +128,44 @@ func initGeoEnv(datDir string) {
 	}
 	os.Setenv(platform.AssetLocation, datDir)
 	os.Setenv(platform.CertLocation, datDir)
+}
+
+// marshalConfigWithoutNulls serialises the converted config with every null-valued key
+// dropped. The converter fills in only the client half of a struct that also describes a
+// server, so marshalling it whole emits the untouched server fields as null. Xray reads
+// an absent key as "use the default", but its json.RawMessage fields capture the literal
+// null and then test non-nil: realitySettings target/dest do exactly that, which sends a
+// client config down the server branch and fails with empty "serverNames".
+func marshalConfigWithoutNulls(conf any) ([]byte, error) {
+	raw, err := json.Marshal(conf)
+	if err != nil {
+		return nil, err
+	}
+	var tree any
+	if err := json.Unmarshal(raw, &tree); err != nil {
+		return nil, err
+	}
+	return json.Marshal(pruneJSONNulls(tree))
+}
+
+func pruneJSONNulls(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, inner := range typed {
+			if inner == nil {
+				delete(typed, key)
+				continue
+			}
+			typed[key] = pruneJSONNulls(inner)
+		}
+		return typed
+	case []any:
+		for i, inner := range typed {
+			typed[i] = pruneJSONNulls(inner)
+		}
+		return typed
+	}
+	return value
 }
 
 func cmdPing(argv []string) error {
