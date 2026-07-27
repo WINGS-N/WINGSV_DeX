@@ -61,11 +61,16 @@ import AboutView from '@/views/AboutView.vue';
 import ConfirmDialog from '@/components/layout/ConfirmDialog.vue';
 import ToastHost from '@/components/layout/ToastHost.vue';
 import FirstLaunchView from '@/views/firstlaunch/FirstLaunchView.vue';
-import { OnboardingService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
+import {
+  OnboardingService,
+  ProfilesService,
+  DeepLinkService,
+} from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import { overlay } from '@/stores/nav.js';
 import { showOnboarding, openOnboarding } from '@/stores/onboarding.js';
 import { updateAvailable, startUpdatePolling } from '@/stores/update.js';
 import { showToast } from '@/stores/toast.js';
+import { confirm } from '@/stores/confirm.js';
 
 // Relay field -> human label for patch toasts.
 const PATCH_LABELS = {
@@ -88,6 +93,31 @@ const tabs = [
 
 const active = ref('home');
 const activeView = computed(() => tabs.find((tab) => tab.id === active.value).view);
+
+// A wingsv:// / vless:// link (from the OS scheme handler or the loopback callback) is never
+// applied silently: the loopback endpoint is reachable by any local process or website, so
+// confirm before importing. SmartImport only adds a profile, it does not connect.
+let importingDeepLink = false;
+async function handleDeepLink(link) {
+  link = String(link || '').trim();
+  if (!link || importingDeepLink) return;
+  importingDeepLink = true;
+  try {
+    const ok = await confirm({
+      title: 'Импорт по ссылке',
+      message: 'Импортировать профиль из полученной ссылки?',
+      confirmText: 'Импортировать',
+    });
+    if (!ok) return;
+    await ProfilesService.SmartImport(link);
+    showToast('Профиль импортирован', { type: 'info' });
+    active.value = 'profiles';
+  } catch (e) {
+    showToast(String(e?.message ?? e ?? 'Не удалось импортировать ссылку'), { type: 'warn' });
+  } finally {
+    importingDeepLink = false;
+  }
+}
 
 // Global WebKitGTK focus-scroll guard: focusing a control makes WebKit scroll a
 // non-scrolling ancestor to reveal it, displacing the fixed-height layout off-screen
@@ -115,6 +145,15 @@ onMounted(async () => {
   }
   startUpdatePolling();
   offs.push(Events.On('connection:notice', (ev) => showToast(ev?.data?.message, { type: ev?.data?.kind || 'info' })));
+  // Runtime deep links (second instance / loopback). A link captured at cold launch is
+  // pulled once here.
+  offs.push(Events.On('deeplink:import', (ev) => handleDeepLink(ev?.data)));
+  try {
+    const pending = await DeepLinkService.Pending();
+    if (pending) handleDeepLink(pending);
+  } catch {
+    // backend not available (pure-vite preview) -> no pending link
+  }
   offs.push(
     Events.On('connection:patch', (ev) => {
       const d = ev?.data;

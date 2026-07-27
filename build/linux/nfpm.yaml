@@ -20,6 +20,9 @@ depends:
   - nftables
   - pkexec | policykit-1
 
+scripts:
+  postinstall: ./build/linux/postinstall.sh
+
 contents:
   - src: ./bin/wingsv-dex
     dst: /usr/lib/wingsv-dex/wingsv-dex

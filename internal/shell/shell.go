@@ -103,6 +103,10 @@ func (c *Controller) show() {
 	c.win.Focus()
 }
 
+// Show brings the window to the foreground. Used when a deep link or loopback callback
+// arrives while the window is hidden in the tray.
+func (c *Controller) Show() { c.show() }
+
 func (c *Controller) toggleConnection() {
 	if isActive(c.status()) {
 		if c.deps.Disconnect != nil {

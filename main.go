@@ -13,6 +13,7 @@ import (
 
 	"github.com/WINGS-N/wingsv-dex/internal/applog"
 	"github.com/WINGS-N/wingsv-dex/internal/config"
+	"github.com/WINGS-N/wingsv-dex/internal/deeplink"
 	"github.com/WINGS-N/wingsv-dex/internal/nethelper"
 	"github.com/WINGS-N/wingsv-dex/internal/services"
 	"github.com/WINGS-N/wingsv-dex/internal/shell"
@@ -71,6 +72,17 @@ func main() {
 	xrayTestSvc := services.NewXrayTestService(store, exePath)
 	byedpiStrategySvc := services.NewByeDpiStrategyService(store, exePath)
 	autoSearchSvc := services.NewAutoSearchService(store, exePath, subscriptionSvc)
+	deepLinkSvc := services.NewDeepLinkService()
+
+	// Register wingsv:// and vless:// with the OS (no-op off Windows; Linux uses the
+	// installed .desktop MimeType). A cold launch from a scheme link arrives in os.Args.
+	deeplink.RegisterSchemes(exePath)
+
+	// deliver routes a link that arrives at runtime (second instance via the OS scheme
+	// handler, or the loopback callback) into the frontend and surfaces the window. It is
+	// assigned once the window controller exists; the SingleInstance callback below only
+	// invokes it later, at runtime.
+	var deliver func(link string)
 
 	app := application.New(application.Options{
 		Name:        "WINGS V DeX",
@@ -89,6 +101,7 @@ func main() {
 			application.NewService(services.NewOnboardingService(configDir)),
 			application.NewService(services.NewMusicService()),
 			application.NewService(services.NewAvatarService(configDir)),
+			application.NewService(deepLinkSvc),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -106,6 +119,19 @@ func main() {
 			// notification area (the tray icon reopens it as a popover).
 			DisableQuitOnLastWindowClosed: true,
 		},
+		// A wingsv:// / vless:// link opened while the app runs launches a second process;
+		// forward its arguments to this instance instead of starting a duplicate.
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: "org.wingsnet.wingsv-dex",
+			OnSecondInstanceLaunch: func(d application.SecondInstanceData) {
+				if deliver == nil {
+					return
+				}
+				if link := deeplink.ExtractSchemeLink(d.Args); link != "" {
+					deliver(link)
+				}
+			},
+		},
 	})
 	connectionSvc.SetApp(app)
 	aboutSvc.SetApp(app)
@@ -114,17 +140,36 @@ func main() {
 	xrayTestSvc.SetApp(app)
 	byedpiStrategySvc.SetApp(app)
 	autoSearchSvc.SetApp(app)
+	deepLinkSvc.SetApp(app)
 	logStore.SetListener(func(channel, line string) {
 		app.Event.Emit(services.LogLineEvent, services.LogLine{Channel: channel, Line: line})
 	})
 
 	// Owns the window and the system tray (show window, connect/disconnect, quit).
-	shell.New(app, shell.Deps{
+	ctrl := shell.New(app, shell.Deps{
 		Status:     func() string { return connectionSvc.State().Status },
 		Connect:    func() { go func() { _, _ = connectionSvc.Connect() }() },
 		Disconnect: func() { connectionSvc.Disconnect() },
 		StateEvent: services.ConnectionStateEvent,
 	})
+
+	deliver = func(link string) {
+		deepLinkSvc.Deliver(link)
+		ctrl.Show()
+	}
+
+	// Cold launch from a scheme link: hold it for the frontend to pull once it mounts.
+	if link := deeplink.ExtractSchemeLink(os.Args[1:]); link != "" {
+		deepLinkSvc.SetPending(link)
+	}
+
+	// Loopback callback channel (http://127.0.0.1:PORT/callback?url=...). A bind failure
+	// (foreign process on the port) is non-fatal: only this channel is then unavailable.
+	if stop, err := deeplink.StartLoopback(deliver); err != nil {
+		log.Printf("deeplink loopback disabled: %v", err)
+	} else {
+		defer stop()
+	}
 
 	if err := app.Run(); err != nil {
 		manager.Stop()
