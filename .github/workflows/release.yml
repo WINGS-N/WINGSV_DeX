@@ -170,7 +170,7 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          prerelease: true
+          prerelease: false
           files: |
             artifacts/linux-amd64/*.deb
             artifacts/linux-arm64/*.deb
