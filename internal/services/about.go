@@ -8,9 +8,11 @@ import (
 	"github.com/WINGS-N/wingsv-dex/internal/updater"
 )
 
-// AppVersion is the WINGS V DeX release string shown on the About screen. Keep it in
-// lockstep with the git tag on release.
-const AppVersion = "0.1.1"
+// AppVersion is the WINGS V DeX release string shown on the About screen and compared
+// against the latest GitHub release. Release builds stamp it from the git tag via the
+// linker (-X ...services.AppVersion=...); this default is only the dev-build fallback, so
+// it must stay a var (a const cannot be set by -ldflags -X).
+var AppVersion = "0.1.1"
 
 // Update event names the About screen subscribes to.
 const (

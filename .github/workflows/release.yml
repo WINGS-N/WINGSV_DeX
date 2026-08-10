@@ -66,7 +66,8 @@ jobs:
           (cd cmd/xrayhelper && CGO_ENABLED=0 GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags="-s -w" -o "$GITHUB_WORKSPACE/bin/xray" .)
           # Native build: each linux job already runs on its target arch.
           (cd external/byedpi && make clean >/dev/null 2>&1 || true; make && cp ciadpi "$GITHUB_WORKSPACE/bin/byedpi")
-          CGO_ENABLED=1 GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags="-s -w" -o bin/wingsv-dex .
+          VERSION="${GITHUB_REF_NAME#v}"; [ -n "$VERSION" ] || VERSION="0.0.0"
+          CGO_ENABLED=1 GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags="-s -w -X 'github.com/WINGS-N/wingsv-dex/internal/services.AppVersion=${VERSION}'" -o bin/wingsv-dex .
       - name: Version
         id: v
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
@@ -130,6 +131,7 @@ jobs:
             --product-version "$VERSION" --file-version "$VERSION"
       - name: Build payloads (amd64 + arm64)
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"; [ -n "$VERSION" ] || VERSION="0.0.0"
           for arch in amd64 arm64; do
             out="dist/windows-$arch"; mkdir -p "$out"
             case "$arch" in amd64) triple=x86_64 ;; arm64) triple=aarch64 ;; esac
@@ -140,7 +142,7 @@ jobs:
             # -H windowsgui marks the exe as GUI-subsystem; without it Windows opens a
             # console window behind the app on every launch. The helpers stay console
             # binaries and are spawned with CREATE_NO_WINDOW instead.
-            CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath -ldflags="-s -w -H windowsgui" -o "$out/wingsv-dex.exe" .
+            CGO_ENABLED=0 GOOS=windows GOARCH=$arch go build -trimpath -ldflags="-s -w -H windowsgui -X 'github.com/WINGS-N/wingsv-dex/internal/services.AppVersion=${VERSION}'" -o "$out/wingsv-dex.exe" .
             cp "wintun/bin/$arch/wintun.dll" "$out/wintun.dll"
             (cd "$out" && zip -r "$GITHUB_WORKSPACE/dist/wingsv-dex-windows-$arch.zip" .)
           done
