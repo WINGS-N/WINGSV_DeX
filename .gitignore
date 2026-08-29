@@ -31,3 +31,5 @@ tmp
 
 # NSIS installer artifact (produced by makensis / CI)
 build/windows/wingsv-dex-setup.exe
+build/linux/appimage/wingsv-dex
+build/linux/appimage/wingsv-dex.png
