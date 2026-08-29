@@ -31,13 +31,17 @@ type storeData struct {
 	AppRouting     AppRoutingSettings `json:"appRouting"`     // per-app split-tunnel mode + lists
 
 	// Xray backend state, parallel to the VK TURN profiles above.
-	XrayProfiles     []XrayProfile         `json:"xrayProfiles"`
-	XrayActiveID     string                `json:"xrayActiveId"`
-	XraySettings     XraySettings          `json:"xraySettings"`
-	Subscriptions    []Subscription        `json:"subscriptions"`
-	DefaultSubSeeded bool                  `json:"defaultSubSeeded"` // the built-in Universal sub was added once
-	ByeDPISettings   ByeDPISettings        `json:"byedpiSettings"`
-	XrayPingResults  map[string]PingRecord `json:"xrayPingResults"` // keyed by xrayPingKey
+	XrayProfiles     []XrayProfile  `json:"xrayProfiles"`
+	XrayActiveID     string         `json:"xrayActiveId"`
+	XraySettings     XraySettings   `json:"xraySettings"`
+	Subscriptions    []Subscription `json:"subscriptions"`
+	DefaultSubSeeded bool           `json:"defaultSubSeeded"` // the built-in Universal sub was added once
+	// CaptchaBypassSeeded records that stored profiles were moved off the old "v2"
+	// solver default onto the vk.me captcha-free path once. Without the flag the
+	// migration would keep overriding a user who deliberately picks v2 back.
+	CaptchaBypassSeeded bool                  `json:"captchaBypassSeeded"`
+	ByeDPISettings      ByeDPISettings        `json:"byedpiSettings"`
+	XrayPingResults     map[string]PingRecord `json:"xrayPingResults"` // keyed by xrayPingKey
 
 	// Cumulative per-profile tunnel traffic, keyed by the profile's stable identity so it
 	// survives re-imports: VK TURN by DedupKey, Xray by xrayPingKey.
@@ -92,6 +96,18 @@ func NewStore(path string) (*Store, error) {
 	// Seed the built-in Universal subscription once, on this and older stores alike.
 	if !s.data.DefaultSubSeeded {
 		s.seedDefaultSubscriptionLocked()
+		migrated = true
+	}
+	// The default captcha path moved from the v2 solver to the captcha-free vk.me
+	// route. A stored "v2" is indistinguishable from the old default, so carry every
+	// one of them over - once, guarded by the flag.
+	if !s.data.CaptchaBypassSeeded {
+		for i := range s.data.Profiles {
+			if s.data.Profiles[i].Settings.CaptchaAutoSolver == "v2" {
+				s.data.Profiles[i].Settings.CaptchaAutoSolver = "bypass"
+			}
+		}
+		s.data.CaptchaBypassSeeded = true
 		migrated = true
 	}
 	if migrated {

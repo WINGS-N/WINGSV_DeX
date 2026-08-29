@@ -361,8 +361,8 @@ const runtimeModeOptions = [
   { value: 'proxy', label: 'Только proxy' },
 ];
 const captchaSolverOptions = [
-  { value: 'bypass', label: 'Обход через vk.me' },
-  { value: 'v2', label: 'Улучшенный (по умолчанию)' },
+  { value: 'bypass', label: 'Обход через vk.me (по умолчанию)' },
+  { value: 'v2', label: 'Улучшенный' },
   { value: 'v1', label: 'Классический' },
 ];
 const sessionModeOptions = [

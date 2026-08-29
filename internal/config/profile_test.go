@@ -40,8 +40,8 @@ func TestProfilesFromConfigDefaultsAndTransport(t *testing.T) {
 	if p.Settings.TurnSessionMode != "mu" {
 		t.Errorf("turnSessionMode = %q, want mu", p.Settings.TurnSessionMode)
 	}
-	if p.Settings.CaptchaAutoSolver != "v2" {
-		t.Errorf("captchaAutoSolver = %q, want v2", p.Settings.CaptchaAutoSolver)
+	if p.Settings.CaptchaAutoSolver != "bypass" {
+		t.Errorf("captchaAutoSolver = %q, want bypass", p.Settings.CaptchaAutoSolver)
 	}
 	if p.Settings.LocalEndpoint != "127.0.0.1:9000" {
 		t.Errorf("localEndpoint = %q, want 127.0.0.1:9000", p.Settings.LocalEndpoint)

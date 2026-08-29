@@ -34,7 +34,7 @@ func DefaultSettings() Settings {
 		UseUDP:                 true,
 		NoObfuscation:          false,
 		ManualCaptcha:          false,
-		CaptchaAutoSolver:      "v2",
+		CaptchaAutoSolver:      "bypass",
 		VKAuthMode:             "anonymous",
 		TurnSessionMode:        "mu",
 		DNSMode:                "auto",
