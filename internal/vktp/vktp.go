@@ -47,6 +47,12 @@ type Manager struct {
 // the abstract name of the privileged protect socket vkturn dials to have its
 // underlay sockets marked (empty disables it). logw receives vkturn's stdout/stderr;
 // pass nil to discard.
+
+// pprofEnvVar names the environment variable that turns the vkturn profiler on,
+// e.g. WINGSV_VKTURN_PPROF=127.0.0.1:6061. Keep it a loopback address: the
+// endpoint hands out goroutine stacks and heap contents.
+const pprofEnvVar = "WINGSV_VKTURN_PPROF"
+
 func NewManager(binaryPath, socketPath, protectSocket string, logw io.Writer) *Manager {
 	if logw == nil {
 		logw = io.Discard
@@ -74,10 +80,19 @@ func (m *Manager) Start(profile config.Profile, client config.ClientSettings, on
 
 	traceLog(m.logw, "vktp: starting vkturn binary=%s socket=%s", m.binaryPath, m.socketPath)
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, m.binaryPath,
+	args := []string{
 		"-app-grpc-socket", m.socketPath,
 		"-app-grpc-token", token,
-	)
+	}
+	// Profiling the data plane means profiling vkturn, which runs as a child and
+	// takes no flags from the UI. An address in the environment turns its
+	// profiler on for a debugging run; unset, the child is started exactly as
+	// before and serves nothing.
+	if addr := strings.TrimSpace(os.Getenv(pprofEnvVar)); addr != "" {
+		args = append(args, "-pprof-listen", addr)
+		traceLog(m.logw, "vktp: profiler requested on %s", addr)
+	}
+	cmd := exec.CommandContext(ctx, m.binaryPath, args...)
 	// stdout/stderr go to the log writer only; status/telemetry come over the
 	// AppControl StreamEvents gRPC, not from scraping these lines.
 	cmd.Stdout = m.logw
