@@ -1,6 +1,8 @@
 package services
 
 import (
+	"runtime/debug"
+	"strings"
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -9,10 +11,52 @@ import (
 )
 
 // AppVersion is the WINGS V DeX release string shown on the About screen and compared
-// against the latest GitHub release. Release builds stamp it from the git tag via the
-// linker (-X ...services.AppVersion=...); this default is only the dev-build fallback, so
-// it must stay a var (a const cannot be set by -ldflags -X).
-var AppVersion = "0.1.1"
+// against the latest GitHub release. Every build stamps it from the git tag through the
+// linker (-X ...services.AppVersion=...), so it must stay a var - a const cannot be set
+// by -ldflags -X - and it must stay empty here: a hardcoded default is a version that
+// goes stale the moment the next tag lands. appVersion resolves the unstamped case.
+var AppVersion string
+
+// appVersion is the stamped version, or what the build metadata can tell us when the
+// linker did not stamp one (a bare go build). Never a hardcoded release number.
+func appVersion() string {
+	if v := strings.TrimSpace(AppVersion); v != "" {
+		return strings.TrimPrefix(v, "v")
+	}
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return devVersion
+	}
+	if v := bi.Main.Version; v != "" && v != "(devel)" {
+		return strings.TrimPrefix(v, "v")
+	}
+	// Wails builds pass -buildvcs=false, so this only fills in for a plain go build.
+	var revision string
+	var dirty bool
+	for _, setting := range bi.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			revision = setting.Value
+		case "vcs.modified":
+			dirty = setting.Value == "true"
+		}
+	}
+	if revision == "" {
+		return devVersion
+	}
+	if len(revision) > 7 {
+		revision = revision[:7]
+	}
+	out := devVersion + "+g" + revision
+	if dirty {
+		out += "-dirty"
+	}
+	return out
+}
+
+// devVersion is the placeholder for an unstamped build. It sorts below every real
+// release, so the updater offers the latest release rather than staying silent.
+const devVersion = "0.0.0-dev"
 
 // Update event names the About screen subscribes to.
 const (
@@ -42,11 +86,11 @@ func (a *AboutService) SetApp(app *application.App) {
 }
 
 // Version returns the version string rendered under the app name on the About screen.
-func (a *AboutService) Version() string { return AppVersion }
+func (a *AboutService) Version() string { return appVersion() }
 
 // CheckUpdate reports the install kind and whether a newer release is available.
 func (a *AboutService) CheckUpdate() updater.Result {
-	return updater.Check(AppVersion)
+	return updater.Check(appVersion())
 }
 
 // ApplyUpdate downloads and installs the newest release in the background (streaming
@@ -62,7 +106,7 @@ func (a *AboutService) ApplyUpdate() {
 	a.mu.Unlock()
 
 	go func() {
-		res := updater.Check(AppVersion)
+		res := updater.Check(appVersion())
 		if res.Status != "available" || res.AppAsset == nil {
 			a.emit(UpdateStateEvent, map[string]any{"state": "uptodate"})
 			a.setApplying(false)

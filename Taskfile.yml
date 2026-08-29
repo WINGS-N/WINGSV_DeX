@@ -9,6 +9,13 @@ vars:
   # by `wails3 build GOOS=...` (or the GOOS env var) for cross-compilation. The
   # tasks below dispatch to the matching platform Taskfile via this variable.
   GOOS: '{{.GOOS | default OS}}'
+  # The single source of truth for the app version is the git tag. Every build
+  # stamps it into services.AppVersion through the linker; nothing hardcodes a
+  # version string. Falls back to the short SHA outside a tagged checkout, and to
+  # 0.0.0-dev when git is unavailable (a source tarball).
+  APP_VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo 0.0.0-dev
+  VERSION_LDFLAGS: '-X github.com/WINGS-N/wingsv-dex/internal/services.AppVersion={{.APP_VERSION}}'
 
 includes:
   common: ./build/Taskfile.yml
