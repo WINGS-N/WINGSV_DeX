@@ -196,9 +196,10 @@ func tcpAddr(path string) (string, bool) {
 	return strings.CutPrefix(path, "tcp:")
 }
 
-// Telemetry streams the connected-stream count to onCount until ctx is cancelled or
-// the stream ends.
-func (m *Manager) Telemetry(ctx context.Context, onCount func(int64)) error {
+// Telemetry streams the connected-stream count and the live worker-fleet size it
+// is counted against to onCount until ctx is cancelled or the stream ends. A relay
+// older than the worker_streams field reports 0 for the fleet size.
+func (m *Manager) Telemetry(ctx context.Context, onCount func(connected, workers int64)) error {
 	m.mu.Lock()
 	client := m.client
 	m.mu.Unlock()
@@ -217,7 +218,7 @@ func (m *Manager) Telemetry(ctx context.Context, onCount func(int64)) error {
 			}
 			return err
 		}
-		onCount(msg.GetConnectedStreams())
+		onCount(msg.GetConnectedStreams(), msg.GetWorkerStreams())
 	}
 }
 

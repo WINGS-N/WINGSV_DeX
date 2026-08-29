@@ -225,7 +225,10 @@ const pillText = computed(() => {
       return n > 0 && m > 0 ? `Подключение (${n}/${m})…` : 'Подключение…';
     }
     case 'connected':
-      return n > 0 && m > 0 && n < m ? `Подключено (${n}/${m})` : 'Подключено';
+      // m is the relay's live worker-fleet size, not the configured target, so a
+      // drain shows up here. Always render the counter: hiding it at n === m was
+      // exactly what made a downscaled fleet invisible.
+      return m > 0 ? `Подключено (${n}/${m})` : 'Подключено';
     case 'stopping':
       return 'Останавливаем соединение…';
     default:

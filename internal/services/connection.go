@@ -126,6 +126,12 @@ type ConnectionService struct {
 	captchaActive  bool
 	captchaLockout bool
 
+	// liveThreads is the worker-fleet size the relay last reported. The configured
+	// thread count is only the target: a threads live-patch or a drained worker
+	// moves the real ceiling, so the pill denominator comes from here whenever the
+	// relay has reported one (0 = nothing reported yet, fall back to configured).
+	liveThreads int
+
 	// warmup is closed once the first stream comes up, so Connect can hold WGUp
 	// until the session is established (Android parity: provision + warmup, then WG).
 	warmup     chan struct{}
@@ -808,6 +814,7 @@ func (s *ConnectionService) beginStreams(threads int) context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
 	s.telCancel = cancel
+	s.liveThreads = 0
 	s.authReady = false
 	s.captchaActive = false
 	s.captchaLockout = false
@@ -846,7 +853,7 @@ func (s *ConnectionService) beginStreams(threads int) context.Context {
 				return
 			}
 			justConnected := prev != StatusConnected && s.state.Status == StatusConnected
-			s.state.Threads = threads
+			s.state.Threads = s.threadsLocked(threads)
 			s.state.Stage = s.computeStageLocked()
 			snapshot := s.state
 			s.mu.Unlock()
@@ -876,14 +883,17 @@ func (s *ConnectionService) startTelemetryAndStats(ctx context.Context, threads 
 	s.refreshIPInfoAsync(ctx)
 
 	go func() {
-		if err := s.manager.Telemetry(ctx, func(count int64) {
+		if err := s.manager.Telemetry(ctx, func(count, fleet int64) {
 			s.mu.Lock()
 			if s.state.Status == StatusStopping || s.state.Status == StatusDisconnected {
 				s.mu.Unlock()
 				return
 			}
+			if fleet > 0 {
+				s.liveThreads = int(fleet)
+			}
 			s.state.Streams = int(count)
-			s.state.Threads = threads
+			s.state.Threads = s.threadsLocked(threads)
 			s.state.Stage = s.computeStageLocked()
 			snapshot := s.state
 			s.mu.Unlock()
@@ -892,6 +902,15 @@ func (s *ConnectionService) startTelemetryAndStats(ctx context.Context, threads 
 			s.proxyLogf("appcontrol telemetry stream error: %v", err)
 		}
 	}()
+}
+
+// threadsLocked resolves the pill denominator: the fleet size the relay reported
+// if it has reported one, else the count we asked it to run. Callers hold s.mu.
+func (s *ConnectionService) threadsLocked(configured int) int {
+	if s.liveThreads > 0 {
+		return s.liveThreads
+	}
+	return configured
 }
 
 func (s *ConnectionService) logProxyEvent(ev *appcontrolpb.ProxyEvent) {
