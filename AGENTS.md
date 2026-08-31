@@ -59,8 +59,10 @@ The plan with milestones M0-M7 lives outside the repo at
 
 - Format: `[scope] short lowercase imperative` - single subject line, NO colon after the scope,
   NO body unless explicitly requested, NO Co-Authored-By or any AI-mention trailer.
-- Pick the narrowest accurate scope, e.g. [vktp], [wg], [wingsv], [config], [frontend], [proto],
-  [build], [ci], [docs], [ignore]. Submodule pointer bump: `[external/vk-turn-proxy] bump`.
+- Scope is `[system/subsystem]`: the subsystem first, then the part of it the change touches -
+  `[wingsv/codec]`, `[vktp/control]`, `[config/profile]`, `[connection/stats]`,
+  `[frontend/settings]`. A flat scope is only for repo-wide changes: `[build]`, `[ci]`,
+  `[docs]`, `[ignore]`. Submodule pointer bump: `[external/vk-turn-proxy] bump`.
 - HARD RULE: do NOT `git push` without explicit user confirmation, even for lint/CI fixes.
   Commit, then stop and report; wait for the user to say push.
 
