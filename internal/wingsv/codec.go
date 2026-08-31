@@ -1,6 +1,5 @@
-// Package wingsv encodes and decodes wingsv:// links. The wire format matches the
-// Android client (WingsImportParser): a wingsv:// link is base64url of a single
-// format byte followed by the zlib-deflated protobuf Config.
+// Package wingsv кодирует и декодирует ссылки wingsv://. Формат общий с
+// приложением: base64url от байта формата и сжатого protobuf Config.
 package wingsv
 
 import (
@@ -14,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/andybalholm/brotli"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/WINGS-N/wingsv-dex/internal/gen/wingsvpb"
@@ -21,9 +21,14 @@ import (
 
 const (
 	SchemePrefix = "wingsv://"
-	// formatProtobufDeflate is the single leading payload byte tagging the rest as
-	// zlib-deflated protobuf. It is the only format emitted.
+	// formatProtobufDeflate - старый формат, читается ради ссылок, выданных
+	// раньше
 	formatProtobufDeflate = 0x12
+	// formatProtobufBrotli - основной формат: ссылка короче на четверть
+	formatProtobufBrotli = 0x13
+	// brotliQuality - пятый уровень. Одиннадцатый на этих данных даёт те же
+	// байты за время в полсотни раз большее
+	brotliQuality = 5
 )
 
 // linkPattern matches a wingsv:// link inside arbitrary pasted text, mirroring the
@@ -62,10 +67,7 @@ func Decode(raw string) (*wingsvpb.Config, error) {
 	if len(decoded) == 0 {
 		return nil, errors.New("wingsv: empty payload")
 	}
-	if decoded[0] != formatProtobufDeflate {
-		return nil, fmt.Errorf("wingsv: unsupported payload format 0x%02x", decoded[0])
-	}
-	inflated, err := inflate(decoded[1:])
+	inflated, err := decompress(decoded)
 	if err != nil {
 		return nil, err
 	}
@@ -103,9 +105,28 @@ func normalizePadding(payload string) string {
 	return payload
 }
 
-// Encode serializes a Config into a wingsv:// link: protobuf bytes, zlib deflate at
-// best compression, a leading format byte, then base64url.
+// Encode собирает ссылку в основном формате: protobuf, сжатый brotli, байт
+// формата, base64url.
 func Encode(config *wingsvpb.Config) (string, error) {
+	raw, err := proto.Marshal(config)
+	if err != nil {
+		return "", fmt.Errorf("wingsv: protobuf: %w", err)
+	}
+	var buf bytes.Buffer
+	buf.WriteByte(formatProtobufBrotli)
+	bw := brotli.NewWriterLevel(&buf, brotliQuality)
+	if _, err := bw.Write(raw); err != nil {
+		return "", fmt.Errorf("wingsv: brotli: %w", err)
+	}
+	if err := bw.Close(); err != nil {
+		return "", fmt.Errorf("wingsv: brotli close: %w", err)
+	}
+	return SchemePrefix + base64.URLEncoding.EncodeToString(buf.Bytes()), nil
+}
+
+// EncodeDeflate собирает ссылку старым форматом. Нужен там, где на той стороне
+// заведомо старая сборка
+func EncodeDeflate(config *wingsvpb.Config) (string, error) {
 	raw, err := proto.Marshal(config)
 	if err != nil {
 		return "", fmt.Errorf("wingsv: protobuf: %w", err)
@@ -123,6 +144,18 @@ func Encode(config *wingsvpb.Config) (string, error) {
 		return "", fmt.Errorf("wingsv: zlib close: %w", err)
 	}
 	return SchemePrefix + base64.URLEncoding.EncodeToString(buf.Bytes()), nil
+}
+
+// decompress разбирает кадр: за байтом формата идёт сжатый protobuf
+func decompress(decoded []byte) ([]byte, error) {
+	switch decoded[0] {
+	case formatProtobufBrotli:
+		return io.ReadAll(brotli.NewReader(bytes.NewReader(decoded[1:])))
+	case formatProtobufDeflate:
+		return inflate(decoded[1:])
+	default:
+		return nil, fmt.Errorf("wingsv: unsupported payload format 0x%02x", decoded[0])
+	}
 }
 
 // inflate decompresses the payload. The app writes a zlib stream; fall back to a

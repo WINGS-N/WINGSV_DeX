@@ -87,3 +87,32 @@ func TestExtractLink(t *testing.T) {
 		t.Fatalf("ExtractLink should be empty, got %q", got)
 	}
 }
+
+// Оба формата обязаны читаться: ссылки, выданные раньше, никуда не делись
+func TestBothFormatsDecode(t *testing.T) {
+	config := &wingsvpb.Config{
+		Ver:  1,
+		Type: wingsvpb.ConfigType_CONFIG_TYPE_XRAY,
+		Xray: &wingsvpb.Xray{Profiles: []*wingsvpb.VlessProfile{{Id: "p1", RawLink: "vless://x@1.2.3.4:443#p1"}}},
+	}
+	brotliLink, err := Encode(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deflateLink, err := EncodeDeflate(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(brotliLink) >= len(deflateLink) {
+		t.Errorf("brotli не короче: %d против %d", len(brotliLink), len(deflateLink))
+	}
+	for _, link := range []string{brotliLink, deflateLink} {
+		got, err := Decode(link)
+		if err != nil {
+			t.Fatalf("ссылка не разобралась: %v", err)
+		}
+		if len(got.GetXray().GetProfiles()) != 1 {
+			t.Errorf("профили потерялись: %+v", got.GetXray())
+		}
+	}
+}
