@@ -75,7 +75,12 @@ func cmdRun(argv []string) error {
 		return err
 	}
 	initGeoEnv(cfg.DatDir)
-	if err := xray.RunXray(cfg.ConfigPath); err != nil {
+	// RunXray takes the config JSON itself, not a path to it.
+	xrayJSON, err := os.ReadFile(cfg.ConfigPath)
+	if err != nil {
+		return err
+	}
+	if err := xray.RunXray(string(xrayJSON)); err != nil {
 		return err
 	}
 	// Proxy-only runs (no tun inbound) leave TunName empty: there is no device to address
@@ -103,7 +108,8 @@ func cmdConvert() error {
 	if err != nil {
 		return err
 	}
-	conf, err := share.ConvertShareLinksToXrayJson(string(links))
+	// secretKey decrypts Age-encrypted subscriptions; empty means plain share links.
+	conf, err := share.ConvertShareLinksToXrayJson(string(links), "")
 	if err != nil {
 		return err
 	}
@@ -174,16 +180,33 @@ func cmdPing(argv []string) error {
 	configPath := fs.String("config", "", "xray config json path")
 	timeout := fs.Int("timeout", 10, "timeout seconds")
 	url := fs.String("url", "https://www.gstatic.com/generate_204", "probe url")
-	proxy := fs.String("proxy", "", "local proxy to route the probe through")
+	tag := fs.String("tag", "proxy", "outbound tag to ping through")
+	// PingBatch builds its own isolated instance and dials through the tagged outbound,
+	// so the old local-proxy route is gone; keep the flag accepted but unused so existing
+	// callers do not fail on an unknown flag.
+	_ = fs.String("proxy", "", "deprecated; ignored")
 	if err := fs.Parse(argv); err != nil {
 		return err
 	}
 	initGeoEnv(*datDir)
-	delay, err := xray.Ping(*configPath, *timeout, *url, *proxy)
+	raw, err := os.ReadFile(*configPath)
 	if err != nil {
 		return err
 	}
-	fmt.Println(delay)
+	results, err := xray.PingBatch([]xray.PingBatchItem{{XrayJSON: string(raw), OutboundTag: *tag}}, *timeout, *url)
+	if err != nil {
+		return err
+	}
+	if len(results) == 0 {
+		return errors.New("ping: no result")
+	}
+	if r := results[0]; !r.Success {
+		if r.Error != "" {
+			return errors.New(r.Error)
+		}
+		return errors.New("ping failed")
+	}
+	fmt.Println(results[0].Delay)
 	return nil
 }
 
@@ -195,5 +218,10 @@ func cmdTest(argv []string) error {
 		return err
 	}
 	initGeoEnv(*datDir)
-	return xray.TestXray(*configPath)
+	// TestXray takes the config JSON itself, not a path to it.
+	xrayJSON, err := os.ReadFile(*configPath)
+	if err != nil {
+		return err
+	}
+	return xray.TestXray(string(xrayJSON))
 }
