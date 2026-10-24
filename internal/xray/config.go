@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os/exec"
 	"strings"
 
@@ -95,10 +96,50 @@ func proxyOutbound(opts Options) (map[string]any, error) {
 	if opts.Settings.AllowInsecure {
 		applyAllowInsecure(out)
 	}
+	// Force the node to re-resolve the target through xray's own DNS rather than trust
+	// the address the client picked: on a hostile uplink that address is a poisoned
+	// answer from the captured system resolver, and connections that arrive without a
+	// sniffable name would otherwise dial it straight through the tunnel.
+	ensureSockopt(out)["domainStrategy"] = forceStrategy(opts.Settings.IPv6)
 	if opts.ByeDPIFrontSocks != "" {
-		out["proxySettings"] = map[string]any{"tag": "byedpi-front", "transportLayer": true}
+		// Chain the node's dial through the local ByeDPI front. xray-core dropped the
+		// outbound "proxySettings" field; the dialer-proxy tag now lives on the stream's
+		// sockopt and always operates at the transport layer.
+		ensureSockopt(out)["dialerProxy"] = "byedpi-front"
 	}
 	return out, nil
+}
+
+// ensureSockopt returns the outbound's streamSettings.sockopt object, creating the
+// streamSettings and sockopt maps if the converted outbound lacks them.
+func ensureSockopt(out map[string]any) map[string]any {
+	ss, _ := out["streamSettings"].(map[string]any)
+	if ss == nil {
+		ss = map[string]any{}
+		out["streamSettings"] = ss
+	}
+	so, _ := ss["sockopt"].(map[string]any)
+	if so == nil {
+		so = map[string]any{}
+		ss["sockopt"] = so
+	}
+	return so
+}
+
+// forceStrategy makes an outbound resolve its target name itself and fail if it cannot;
+// useStrategy resolves when possible but does not hard-fail on an unresolved name.
+func forceStrategy(ipv6 bool) string {
+	if ipv6 {
+		return "ForceIP"
+	}
+	return "ForceIPv4"
+}
+
+func useStrategy(ipv6 bool) string {
+	if ipv6 {
+		return "UseIP"
+	}
+	return "UseIPv4"
 }
 
 // convertLink runs `bin/xray convert` with the share link on stdin and returns the first
@@ -194,7 +235,12 @@ func buildInbounds(opts Options) []any {
 func buildOutbounds(proxy map[string]any, opts Options) []any {
 	out := []any{
 		proxy,
-		map[string]any{"tag": "direct", "protocol": "freedom", "settings": map[string]any{}},
+		map[string]any{
+			"tag":            "direct",
+			"protocol":       "freedom",
+			"settings":       map[string]any{},
+			"streamSettings": map[string]any{"sockopt": map[string]any{"domainStrategy": useStrategy(opts.Settings.IPv6)}},
+		},
 		map[string]any{"tag": "block", "protocol": "blackhole", "settings": map[string]any{}},
 		map[string]any{"tag": "dns-out", "protocol": "dns"},
 	}
@@ -228,18 +274,58 @@ func buildRouting(s config.XraySettings) map[string]any {
 }
 
 func buildDNS(s config.XraySettings) map[string]any {
+	var servers []any
+	// Bootstrap: resolve the hostnames of any DoH/DoT servers via plain protected
+	// resolvers, scoped to just those hosts, so the encrypted resolver is reachable
+	// without the uplink's system resolver (which a hostile network can poison).
+	if hosts := dnsServerHosts(s.RemoteDNS, s.DirectDNS); len(hosts) > 0 {
+		domains := make([]any, 0, len(hosts))
+		for _, h := range hosts {
+			domains = append(domains, "full:"+h)
+		}
+		for _, resolver := range []string{"77.88.8.8", "8.8.8.8", "1.1.1.1"} {
+			servers = append(servers, map[string]any{"address": resolver, "domains": domains})
+		}
+	}
+	if s.RemoteDNS != "" {
+		servers = append(servers, s.RemoteDNS)
+	}
+	// Plain last-resort resolver for startup before the encrypted server is reachable.
+	servers = append(servers, "1.1.1.1")
 	strategy := "UseIP"
 	if !s.IPv6 {
 		strategy = "UseIPv4"
 	}
-	servers := []any{}
-	if s.RemoteDNS != "" {
-		servers = append(servers, s.RemoteDNS)
-	}
-	// A plain fallback resolver keeps name resolution working if the DoH endpoint is
-	// unreachable during startup.
-	servers = append(servers, "1.1.1.1")
 	return map[string]any{"servers": servers, "queryStrategy": strategy}
+}
+
+// dnsServerHosts returns the distinct domain hostnames of any DoH/DoT-style DNS server
+// URLs among the given values; plain-IP servers and bare IP literals contribute nothing.
+func dnsServerHosts(values ...string) []string {
+	seen := map[string]struct{}{}
+	var hosts []string
+	for _, v := range values {
+		for _, entry := range strings.Split(v, ",") {
+			entry = strings.TrimSpace(entry)
+			if entry == "" || !strings.Contains(entry, "://") {
+				continue
+			}
+			u, err := url.Parse(entry)
+			if err != nil {
+				continue
+			}
+			host := u.Hostname()
+			if host == "" || net.ParseIP(host) != nil {
+				continue
+			}
+			if _, dup := seen[host]; dup {
+				continue
+			}
+			seen[host] = struct{}{}
+			hosts = append(hosts, host)
+		}
+	}
+	return hosts
 }
 
 // applyAllowInsecure sets allowInsecure on the outbound's TLS/REALITY stream settings so a
