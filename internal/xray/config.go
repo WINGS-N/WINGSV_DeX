@@ -178,16 +178,23 @@ func buildInbounds(opts Options) []any {
 		"routeOnly":    false,
 	}
 	if opts.IncludeTun {
+		// Bind outbound sockets to the physical default-route interface so the proxy's
+		// own upstream (and the DNS resolvers) do not loop into the tun. Pin a concrete
+		// name instead of "auto": the fork's auto detection runs after the tun is up and
+		// can return no interface, which xray-core now treats as a fatal dial error
+		// ("iface not found"). Fall back to "auto" only if detection here fails.
+		outboundIface := physicalOutboundInterface()
+		if outboundIface == "" {
+			outboundIface = "auto"
+		}
 		in = append(in, map[string]any{
 			"tag":      "tun-in",
 			"protocol": "tun",
 			"settings": map[string]any{
-				"name":      TunDeviceName,
-				"mtu":       1500,
-				"userLevel": 0,
-				// bind outbound sockets to the physical default-route interface so the
-				// proxy's own upstream traffic does not loop back into the tun.
-				"autoOutboundsInterface": "auto",
+				"name":                   TunDeviceName,
+				"mtu":                    1500,
+				"userLevel":              0,
+				"autoOutboundsInterface": outboundIface,
 			},
 			"sniffing": sniff,
 		})
