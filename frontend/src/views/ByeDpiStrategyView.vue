@@ -19,6 +19,8 @@
     </header>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-8">
+      <ProgressBar v-if="running" class="mb-3" :value="total ? done / total : 0" :label="`${done} из ${total}`" />
+
       <p class="mb-3 text-sm text-wings-muted">
         Каждая стратегия проверяется через локальный ByeDPI на доступность тестовых доменов. Нажмите на результат, чтобы
         применить его как команду.
@@ -58,6 +60,7 @@ import { ByeDpiStrategyService } from '@bindings/github.com/WINGS-N/wingsv-dex/i
 import SamsungButton from '@/components/layout/SamsungButton.vue';
 import SamsungSpinner from '@/components/layout/SamsungSpinner.vue';
 import ScrollTopButton from '@/components/layout/ScrollTopButton.vue';
+import ProgressBar from '@/components/autosearch/ProgressBar.vue';
 import { closeOverlay } from '@/stores/nav.js';
 import { showToast } from '@/stores/toast.js';
 import { usePinnedScroll } from '@/composables/usePinnedScroll.js';
