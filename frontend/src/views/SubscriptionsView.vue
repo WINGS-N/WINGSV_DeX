@@ -25,6 +25,7 @@
         <div class="flex flex-col gap-2">
           <OneuiInput label="Название" v-model="newTitle" placeholder="Моя подписка" />
           <OneuiInput label="Ссылка" v-model="newUrl" placeholder="https://..." />
+          <OneuiInput label="Запасные ссылки" v-model="newMirrors" placeholder="через запятую" />
           <div class="flex justify-end">
             <SamsungButton variant="primary" :busy="busy" :disabled="!newUrl.trim()" @click="add"
               >Добавить</SamsungButton
@@ -106,6 +107,7 @@ const rootEl = usePinnedScroll();
 const subs = ref([]);
 const newTitle = ref('');
 const newUrl = ref('');
+const newMirrors = ref('');
 const busy = ref(false);
 const refreshing = ref('');
 const error = ref('');
@@ -128,12 +130,17 @@ async function add() {
   busy.value = true;
   error.value = '';
   try {
-    const res = await SubscriptionService.Add(newTitle.value.trim(), url);
+    const mirrors = newMirrors.value
+      .split(/[\s,]+/)
+      .map((candidate) => candidate.trim())
+      .filter(Boolean);
+    const res = await SubscriptionService.Add(newTitle.value.trim(), url, mirrors);
     apply(res.subscriptions);
     if (res.error) showToast('Подписка добавлена, но обновление не удалось', { type: 'warn' });
     else showToast(`Добавлено узлов: ${res.updated}`, { type: 'success' });
     newTitle.value = '';
     newUrl.value = '';
+    newMirrors.value = '';
   } catch (e) {
     error.value = String(e?.message ?? e ?? 'Не удалось добавить подписку');
   } finally {
