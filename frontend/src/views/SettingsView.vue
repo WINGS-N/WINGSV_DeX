@@ -27,6 +27,17 @@
             <button
               type="button"
               class="flex w-full items-center justify-between py-3.5 text-left"
+              @click="openOverlay('xray-routing')"
+            >
+              <span class="flex flex-col">
+                <span class="text-[17px]">Маршрутизация</span>
+                <span class="mt-0.5 text-sm text-wings-muted">Правила geoip и geosite, домены и адреса</span>
+              </span>
+              <ChevronRight :size="20" class="shrink-0 text-wings-muted" />
+            </button>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between py-3.5 text-left"
               @click="openOverlay('subscriptions')"
             >
               <span class="flex flex-col">

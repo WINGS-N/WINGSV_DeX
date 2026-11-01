@@ -3,6 +3,7 @@
     <VkTurnSettingsView v-if="overlay === 'vkturn-settings'" />
     <XraySettingsView v-else-if="overlay === 'xray-settings'" />
     <SubscriptionsView v-else-if="overlay === 'subscriptions'" />
+    <XrayRoutingView v-else-if="overlay === 'xray-routing'" />
     <ByeDpiSettingsView v-else-if="overlay === 'byedpi-settings'" />
     <ByeDpiStrategyView v-else-if="overlay === 'byedpi-strategies'" />
     <AutoSearchView v-else-if="overlay === 'autosearch'" />
@@ -54,6 +55,7 @@ import VkTurnSettingsView from '@/views/VkTurnSettingsView.vue';
 import LogsView from '@/views/LogsView.vue';
 import XraySettingsView from '@/views/XraySettingsView.vue';
 import SubscriptionsView from '@/views/SubscriptionsView.vue';
+import XrayRoutingView from '@/views/XrayRoutingView.vue';
 import ByeDpiSettingsView from '@/views/ByeDpiSettingsView.vue';
 import ByeDpiStrategyView from '@/views/ByeDpiStrategyView.vue';
 import AutoSearchView from '@/views/AutoSearchView.vue';
