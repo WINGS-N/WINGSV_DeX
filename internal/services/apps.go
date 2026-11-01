@@ -46,6 +46,12 @@ func toAppRouting(a config.AppRoutingSettings) AppRouting {
 	return AppRouting{Mode: a.Mode, Bypass: a.Bypass, Whitelist: a.Whitelist}
 }
 
+// Supported сообщает фронту, доступна ли вообще фильтрация по программам на этой
+// платформе: экран без неё показывает плашку вместо переключателей.
+func (s *AppsService) Supported() bool {
+	return appRoutingSupported
+}
+
 // Routing returns the current split-tunnel mode and lists.
 func (s *AppsService) Routing() AppRouting {
 	return toAppRouting(s.store.AppRouting())
