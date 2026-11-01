@@ -14,6 +14,7 @@ import (
 	"github.com/WINGS-N/wingsv-dex/internal/applog"
 	"github.com/WINGS-N/wingsv-dex/internal/config"
 	"github.com/WINGS-N/wingsv-dex/internal/deeplink"
+	"github.com/WINGS-N/wingsv-dex/internal/geoassets"
 	"github.com/WINGS-N/wingsv-dex/internal/nethelper"
 	"github.com/WINGS-N/wingsv-dex/internal/services"
 	"github.com/WINGS-N/wingsv-dex/internal/shell"
@@ -69,6 +70,12 @@ func main() {
 	connectionSvc := services.NewConnectionService(store, logStore, manager, vkAuthSvc, exePath)
 	aboutSvc := services.NewAboutService(func() { manager.Stop() })
 	subscriptionSvc := services.NewSubscriptionService(store)
+	geoStore, err := geoassets.New(configDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	routingSvc := services.NewRoutingService(store, geoStore)
+	connectionSvc.SetGeoDir(geoStore.Dir())
 	xrayTestSvc := services.NewXrayTestService(store, exePath)
 	byedpiStrategySvc := services.NewByeDpiStrategyService(store, exePath)
 	autoSearchSvc := services.NewAutoSearchService(store, exePath, subscriptionSvc)
@@ -95,6 +102,7 @@ func main() {
 			application.NewService(services.NewLogsService(logStore)),
 			application.NewService(aboutSvc),
 			application.NewService(subscriptionSvc),
+			application.NewService(routingSvc),
 			application.NewService(xrayTestSvc),
 			application.NewService(byedpiStrategySvc),
 			application.NewService(autoSearchSvc),

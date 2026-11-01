@@ -103,6 +103,7 @@ type ConnectionService struct {
 	logStore *applog.Store
 	manager  *vktp.Manager
 	exePath  string
+	geoDir   string
 
 	vkauth *VKAuthService
 
@@ -152,6 +153,10 @@ func NewConnectionService(store *config.Store, logStore *applog.Store, manager *
 		state:    ConnectionState{Status: StatusDisconnected},
 	}
 }
+
+// SetGeoDir говорит сервису, где лежат базы geoip и geosite: ядро получает этот
+// каталог при запуске, и без него правила geoip: и geosite: ничего не матчат.
+func (s *ConnectionService) SetGeoDir(dir string) { s.geoDir = dir }
 
 // SetApp gives the service the running application so it can emit state events.
 // Called from main once the app exists.
@@ -647,12 +652,14 @@ func (s *ConnectionService) connectXray() (ConnectionState, error) {
 	if byedpiSettings.Enabled {
 		frontSocks = byedpiSettings.ListenAddr()
 	}
+	routingRules := s.store.XrayRoutingRules()
 	cfgJSON, err := xray.Build(xray.Options{
 		XrayBin:          bin,
 		Profile:          profile,
 		Settings:         settings,
 		IncludeTun:       vpn,
 		ByeDPIFrontSocks: frontSocks,
+		RoutingRules:     routingRules,
 	})
 	if err != nil {
 		s.runtimeLogf("xray build config failure: %v", err)
@@ -695,7 +702,7 @@ func (s *ConnectionService) connectXray() (ConnectionState, error) {
 				return s.fail(err)
 			}
 		}
-		if err := dp.XrayUp(bin, cfgJSON, xray.TunDeviceName, "", settings.IPv6); err != nil {
+		if err := dp.XrayUp(bin, cfgJSON, xray.TunDeviceName, s.geoDir, settings.IPv6); err != nil {
 			s.runtimeLogf("xrayup failure: %v", err)
 			dp.Stop()
 			return s.fail(err)
