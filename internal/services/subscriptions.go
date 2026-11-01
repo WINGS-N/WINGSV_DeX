@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -43,11 +44,19 @@ func (s *SubscriptionService) List() []config.Subscription {
 	return s.store.SubscriptionList()
 }
 
-// Add adds a subscription and immediately fetches it.
-func (s *SubscriptionService) Add(title, url string) (SubscriptionRefresh, error) {
+// Add adds a subscription and immediately fetches it. mirrors - запасные адреса,
+// по которым обновление пойдёт, если основной перестал отвечать.
+func (s *SubscriptionService) Add(title, url string, mirrors []string) (SubscriptionRefresh, error) {
 	sub, err := s.store.AddSubscription(title, url)
 	if err != nil {
 		return SubscriptionRefresh{}, err
+	}
+	if len(mirrors) > 0 {
+		updated, merr := s.store.SetSubscriptionMirrors(sub.ID, mirrors)
+		if merr != nil {
+			return SubscriptionRefresh{}, merr
+		}
+		sub = updated
 	}
 	n, ferr := s.refresh(sub)
 	res := SubscriptionRefresh{Subscriptions: s.store.SubscriptionList(), Updated: n}
@@ -89,16 +98,38 @@ func (s *SubscriptionService) Refresh(id string) (SubscriptionRefresh, error) {
 }
 
 // RefreshAll fetches every subscription.
+// maxParallelRefreshes ограничивает одновременные обновления: подписок может быть
+// много, а каждая это сетевой запрос с таймаутом.
+const maxParallelRefreshes = 6
+
+// RefreshAll обновляет подписки параллельно - раньше десять подписок ждали друг
+// друга по очереди. Запись узлов идёт в стор под его мьютексом, так что гонок нет.
 func (s *SubscriptionService) RefreshAll() SubscriptionRefresh {
-	total := 0
-	var lastErr string
-	for _, sub := range s.store.SubscriptionList() {
-		if n, err := s.refresh(sub); err != nil {
-			lastErr = err.Error()
-		} else {
+	subs := s.store.SubscriptionList()
+	var (
+		mu      sync.Mutex
+		wg      sync.WaitGroup
+		total   int
+		lastErr string
+	)
+	slots := make(chan struct{}, maxParallelRefreshes)
+	for _, sub := range subs {
+		wg.Add(1)
+		go func(target config.Subscription) {
+			defer wg.Done()
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			n, err := s.refresh(target)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				lastErr = err.Error()
+				return
+			}
 			total += n
-		}
+		}(sub)
 	}
+	wg.Wait()
 	return SubscriptionRefresh{Subscriptions: s.store.SubscriptionList(), Updated: total, Error: lastErr}
 }
 
@@ -134,15 +165,29 @@ func (s *SubscriptionService) StartAutoUpdate() {
 
 func (s *SubscriptionService) sweep() {
 	now := time.Now().Unix()
-	refreshed := false
+	var (
+		mu        sync.Mutex
+		wg        sync.WaitGroup
+		refreshed bool
+	)
+	slots := make(chan struct{}, maxParallelRefreshes)
 	for _, sub := range s.store.SubscriptionList() {
 		if !sub.AutoUpdate || !due(sub, now) {
 			continue
 		}
-		if _, err := s.refresh(sub); err == nil {
-			refreshed = true
-		}
+		wg.Add(1)
+		go func(target config.Subscription) {
+			defer wg.Done()
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			if _, err := s.refresh(target); err == nil {
+				mu.Lock()
+				refreshed = true
+				mu.Unlock()
+			}
+		}(sub)
 	}
+	wg.Wait()
 	if refreshed && s.app != nil {
 		s.app.Event.Emit(SubscriptionsUpdatedEvent, s.store.SubscriptionList())
 	}
