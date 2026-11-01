@@ -5,6 +5,8 @@ package xraysubs
 import (
 	"context"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"regexp"
@@ -39,8 +41,26 @@ type Result struct {
 // Fetch downloads the subscription and parses its nodes + quota. Fresh sockets (keep-alives
 // disabled) are used so that, when a tunnel is up, the request exits through it rather than
 // an idle connection pinned to the physical link.
+// Fetch обходит адреса подписки по порядку и отдаёт первый ответивший. Ошибка
+// возвращается только когда не ответил ни один, и тогда она несёт причины всех.
 func Fetch(ctx context.Context, sub config.Subscription) (Result, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSpace(sub.URL), nil)
+	urls := sub.AllURLs()
+	if len(urls) == 0 {
+		return Result{}, errors.New("subscription has no url")
+	}
+	var failures []error
+	for _, candidate := range urls {
+		res, err := fetchFrom(ctx, sub, candidate)
+		if err == nil {
+			return res, nil
+		}
+		failures = append(failures, fmt.Errorf("%s: %w", candidate, err))
+	}
+	return Result{}, errors.Join(failures...)
+}
+
+func fetchFrom(ctx context.Context, sub config.Subscription, rawURL string) (Result, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSpace(rawURL), nil)
 	if err != nil {
 		return Result{}, err
 	}
