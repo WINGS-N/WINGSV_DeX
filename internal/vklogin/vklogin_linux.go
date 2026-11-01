@@ -50,7 +50,7 @@ static void finish(vk_ctx* c, const char* cookies, const char* ua, const char* e
 }
 
 // on_cookies_ready fires on the GTK main loop with the current cookie jar for
-// vk.com. It only completes once remixsid is present (the signed-in signal).
+// хостам VK. Завершается только когда появился remixsid - признак входа.
 static void on_cookies_ready(GObject* src, GAsyncResult* res, gpointer data) {
     vk_ctx* c = (vk_ctx*)data;
     GError* err = NULL;
@@ -88,9 +88,12 @@ static void on_cookies_ready(GObject* src, GAsyncResult* res, gpointer data) {
 static void on_load_changed(WebKitWebView* wv, WebKitLoadEvent ev, gpointer data) {
     vk_ctx* c = (vk_ctx*)data;
     if (c->finished || ev != WEBKIT_LOAD_FINISHED) return;
-    // Query login.vk.com: the relay mints the privileged web token against that host,
-    // so its cookie set (the .vk.com session cookies plus any login.vk.com ones) is
-    // exactly what the token endpoint needs.
+    // Привилегированный web-токен релей выписывает против login-хоста, поэтому нужен
+    // именно его набор куки. Спрашиваем оба: VK переехал на vk.ru, но у кого-то сессия
+    // ещё лежит на .com. Колбэк завершает работу только когда в наборе есть remixsid,
+    // так что лишний запрос просто уходит в молоко, а гонки тут нет - оба попадают в
+    // один колбэк и он проверяет c->finished
+    webkit_cookie_manager_get_cookies(c->cm, "https://login.vk.ru/", NULL, on_cookies_ready, c);
     webkit_cookie_manager_get_cookies(c->cm, "https://login.vk.com/", NULL, on_cookies_ready, c);
 }
 
@@ -193,7 +196,7 @@ func vkloginResult(cookies, ua, errStr *C.char) {
 // returned back. It returns the "k=v; k=v" cookie header and the browser User-Agent.
 func Capture(loginURL, storageDir, userAgent string) (cookies, ua string, err error) {
 	if loginURL == "" {
-		loginURL = "https://vk.com/"
+		loginURL = "https://vk.ru/"
 	}
 	if err := os.MkdirAll(storageDir, 0o700); err != nil {
 		return "", "", err

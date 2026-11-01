@@ -3,7 +3,7 @@
 // Windows VK sign-in window via WebView2. The app's own webview cannot read HttpOnly
 // cookies like remixsid, so this opens a dedicated WebView2 window and captures the VK
 // web session by reading the "Cookie" (and "User-Agent") header off the browser's own
-// outgoing requests to vk.com - those carry the full HttpOnly cookie set the relay needs.
+// исходящие запросы к хостам VK - именно они несут полный набор HttpOnly-куки, нужный релею.
 //
 // It uses the SAME WebView2 binding the Wails app uses (github.com/wailsapp/wails/webview2)
 // rather than a third-party one: an independent binding's CreateCoreWebView2Environment
@@ -85,7 +85,7 @@ type win32msg struct {
 // dedicated --vk-login child process (see Login / RunChild).
 func Capture(loginURL, storageDir, userAgent string) (cookies, ua string, err error) {
 	if loginURL == "" {
-		loginURL = "https://vk.com/"
+		loginURL = "https://vk.ru/"
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -101,7 +101,7 @@ func Capture(loginURL, storageDir, userAgent string) (cookies, ua string, err er
 
 	var chromium *edge.Chromium
 	var vkCookies, loginCookies, gotUA string
-	loginNavDone := false
+	loginNavTries := 0
 
 	wndProc := syscall.NewCallback(func(hwnd windows.Handle, m uint32, wParam, lParam uintptr) uintptr {
 		switch m {
@@ -170,7 +170,7 @@ func Capture(loginURL, storageDir, userAgent string) (cookies, ua string, err er
 			return
 		}
 		uri, _ := req.GetUri()
-		if !strings.Contains(uri, "vk.com") {
+		if !strings.Contains(uri, "vk.ru") && !strings.Contains(uri, "vk.com") {
 			return
 		}
 		if u := reqHeader(req, "User-Agent"); u != "" {
@@ -180,20 +180,25 @@ func Capture(loginURL, storageDir, userAgent string) (cookies, ua string, err er
 		if !strings.Contains(cookie, "remixsid") {
 			return
 		}
-		// The relay mints its web token against login.vk.com, so the cookie set must be the
-		// one the browser sends to THAT host (the shared .vk.com session cookies plus any
-		// login.vk.com-only cookies). A plain vk.com request omits the login.vk.com-only
-		// cookies and VK's token endpoint then rejects the session as unauthorized. So once
-		// signed in, bounce through login.vk.com and grab the cookie header off that request;
-		// keep the vk.com set as a fallback if the user closes the window first.
-		if strings.Contains(uri, "login.vk.com") {
+		// Привилегированный web-токен релей выписывает против login-хоста, значит нужен
+		// набор куки, который браузер шлёт именно ТУДА: общие сессионные плюс те, что
+		// живут только на login-хосте. Запрос на обычный vk последние не несёт, и токен
+		// endpoint отбивает сессию как неавторизованную. Поэтому после входа делаем
+		// bounce на login-хост и снимаем заголовок уже с него, а набор с обычного vk
+		// держим как fallback, если человек закроет окно раньше.
+		if strings.Contains(uri, "login.vk.ru") || strings.Contains(uri, "login.vk.com") {
 			loginCookies = cookie
 			procPostQuitMessage.Call(0)
 			return
 		}
 		vkCookies = cookie
-		if !loginNavDone {
-			loginNavDone = true
+		// VK переехал на vk.ru, но у кого-то сессия ещё на .com - пробуем по очереди
+		switch loginNavTries {
+		case 0:
+			loginNavTries++
+			chromium.Navigate("https://login.vk.ru/")
+		case 1:
+			loginNavTries++
 			chromium.Navigate("https://login.vk.com/")
 		}
 	}
@@ -232,7 +237,7 @@ func Capture(loginURL, storageDir, userAgent string) (cookies, ua string, err er
 	if gotUA == "" {
 		gotUA = userAgent
 	}
-	log.Printf("vklogin: captured VK session (login.vk.com set=%v, %d bytes)", loginCookies != "", len(gotCookies))
+	log.Printf("vklogin: captured VK session (login host set=%v, %d bytes)", loginCookies != "", len(gotCookies))
 	return gotCookies, gotUA, nil
 }
 
