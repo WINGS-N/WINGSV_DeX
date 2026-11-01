@@ -76,6 +76,7 @@ func main() {
 	}
 	routingSvc := services.NewRoutingService(store, geoStore)
 	connectionSvc.SetGeoDir(geoStore.Dir())
+	routingSvc.StartAutoUpdate()
 	xrayTestSvc := services.NewXrayTestService(store, exePath)
 	byedpiStrategySvc := services.NewByeDpiStrategyService(store, exePath)
 	autoSearchSvc := services.NewAutoSearchService(store, exePath, subscriptionSvc)

@@ -212,6 +212,11 @@ func (s Subscription) AllURLs() []string {
 type XrayGeoSources struct {
 	GeoIPURL   string `json:"geoipUrl,omitempty"`
 	GeoSiteURL string `json:"geositeUrl,omitempty"`
+	// AutoUpdate качает базы при запуске и раз в сутки. Без них правила geoip и
+	// geosite молча не матчат, а человек видит только что "правило не работает"
+	AutoUpdate bool `json:"autoUpdate,omitempty"`
+	// LastCheckUnix - когда последний раз проверяли, чтобы не качать на каждый запуск
+	LastCheckUnix int64 `json:"lastCheckUnix,omitempty"`
 }
 
 // XrayRoutingMatch - по чему правило матчит трафик. Значения совпадают с тем, что
