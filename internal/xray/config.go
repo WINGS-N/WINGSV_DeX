@@ -29,6 +29,9 @@ type Options struct {
 	// ByeDPIFrontSocks, when set, routes the proxy outbound through this local SOCKS
 	// (host:port) as a DPI-bypass front (filled by the ByeDPI integration).
 	ByeDPIFrontSocks string
+	// RoutingRules - пользовательские правила маршрутизации. Встают перед общим
+	// правилом, потому что Xray берёт первое совпавшее
+	RoutingRules []config.XrayRoutingRule
 }
 
 // ProbeConfig builds a minimal proxy-only config for a single node: a no-auth SOCKS inbound
@@ -66,7 +69,7 @@ func Build(opts Options) (string, error) {
 		"dns":       buildDNS(opts.Settings),
 		"inbounds":  buildInbounds(opts),
 		"outbounds": buildOutbounds(proxy, opts),
-		"routing":   buildRouting(opts.Settings),
+		"routing":   buildRouting(opts.Settings, opts.RoutingRules),
 	}
 	raw, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
@@ -262,7 +265,86 @@ func buildOutbounds(proxy map[string]any, opts Options) []any {
 	return out
 }
 
-func buildRouting(s config.XraySettings) map[string]any {
+// customRoutingRules переводит правила пользователя в язык конфига Xray. Матчеры
+// совпадают с тем, что шлёт приложение, иначе перенесённые правила вели бы себя иначе:
+// geoip и geosite уезжают с префиксом, домены и адреса списком, порт строкой,
+// network строкой через запятую, protocol массивом.
+func customRoutingRules(rules []config.XrayRoutingRule) []any {
+	out := make([]any, 0, len(rules))
+	for _, rule := range rules {
+		if !rule.Enabled || strings.TrimSpace(rule.Code) == "" {
+			continue
+		}
+		entry := map[string]any{"type": "field", "outboundTag": routingOutboundTag(rule.NormalizedAction())}
+		switch rule.NormalizedMatch() {
+		case config.RoutingMatchGeoSite:
+			entry["domain"] = []string{"geosite:" + strings.TrimSpace(rule.Code)}
+		case config.RoutingMatchGeoIP:
+			entry["ip"] = []string{"geoip:" + strings.TrimSpace(rule.Code)}
+		case config.RoutingMatchDomain:
+			values := splitRoutingValues(rule.Code)
+			if len(values) == 0 {
+				continue
+			}
+			entry["domain"] = values
+		case config.RoutingMatchIP:
+			values := splitRoutingValues(rule.Code)
+			if len(values) == 0 {
+				continue
+			}
+			entry["ip"] = values
+		case config.RoutingMatchPort:
+			port := strings.Join(splitRoutingValues(rule.Code), ",")
+			if port == "" {
+				continue
+			}
+			entry["port"] = port
+		case config.RoutingMatchNetwork:
+			network := strings.ToLower(strings.Join(splitRoutingValues(rule.Code), ","))
+			if network == "" {
+				continue
+			}
+			entry["network"] = network
+		case config.RoutingMatchProtocol:
+			values := splitRoutingValues(rule.Code)
+			if len(values) == 0 {
+				continue
+			}
+			for i := range values {
+				values[i] = strings.ToLower(values[i])
+			}
+			entry["protocol"] = values
+		default:
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func routingOutboundTag(action config.XrayRoutingAction) string {
+	switch action {
+	case config.RoutingActionDirect:
+		return "direct"
+	case config.RoutingActionBlock:
+		return "block"
+	default:
+		return "proxy"
+	}
+}
+
+func splitRoutingValues(raw string) []string {
+	var out []string
+	for _, token := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ' ' || r == '\n' || r == '\t' }) {
+		trimmed := strings.TrimSpace(token)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func buildRouting(s config.XraySettings, custom []config.XrayRoutingRule) map[string]any {
 	rules := []any{
 		// DNS queries to the dns outbound so the fake-dns/redirect path works.
 		map[string]any{"type": "field", "port": "53", "outboundTag": "dns-out"},
@@ -273,10 +355,10 @@ func buildRouting(s config.XraySettings) map[string]any {
 			"type": "field", "network": "udp", "port": "443", "outboundTag": "block",
 		})
 	}
-	rules = append(rules,
-		map[string]any{"type": "field", "protocol": []string{"bittorrent"}, "outboundTag": "block"},
-		map[string]any{"type": "field", "network": "tcp,udp", "outboundTag": "proxy"},
-	)
+	rules = append(rules, map[string]any{"type": "field", "protocol": []string{"bittorrent"}, "outboundTag": "block"})
+	// Пользовательские правила идут до общего: иначе всё забирает оно
+	rules = append(rules, customRoutingRules(custom)...)
+	rules = append(rules, map[string]any{"type": "field", "network": "tcp,udp", "outboundTag": "proxy"})
 	return map[string]any{"domainStrategy": "IPIfNonMatch", "rules": rules}
 }
 
