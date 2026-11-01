@@ -171,16 +171,119 @@ func xrayPingKey(p XrayProfile) string { return p.SubscriptionID + "|" + p.Dedup
 // fields are the per-subscription traffic quota reported by the server's
 // Subscription-Userinfo response header (upload/download/total bytes and an expiry).
 type Subscription struct {
-	ID                      string `json:"id"`
-	Title                   string `json:"title"`
-	URL                     string `json:"url"`
-	RefreshIntervalMinutes  int    `json:"refreshIntervalMinutes,omitempty"`
-	AutoUpdate              bool   `json:"autoUpdate"`
-	LastUpdatedAt           int64  `json:"lastUpdatedAt,omitempty"`
-	AdvertisedUploadBytes   int64  `json:"advertisedUploadBytes,omitempty"`
-	AdvertisedDownloadBytes int64  `json:"advertisedDownloadBytes,omitempty"`
-	AdvertisedTotalBytes    int64  `json:"advertisedTotalBytes,omitempty"`
-	AdvertisedExpireAt      int64  `json:"advertisedExpireAt,omitempty"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
+	// Запасные адреса той же подписки: если основной перестал отвечать, обновление
+	// идёт по ним по порядку, и один упавший хост не оставляет человека без узлов
+	MirrorURLs              []string `json:"mirrorUrls,omitempty"`
+	RefreshIntervalMinutes  int      `json:"refreshIntervalMinutes,omitempty"`
+	AutoUpdate              bool     `json:"autoUpdate"`
+	LastUpdatedAt           int64    `json:"lastUpdatedAt,omitempty"`
+	AdvertisedUploadBytes   int64    `json:"advertisedUploadBytes,omitempty"`
+	AdvertisedDownloadBytes int64    `json:"advertisedDownloadBytes,omitempty"`
+	AdvertisedTotalBytes    int64    `json:"advertisedTotalBytes,omitempty"`
+	AdvertisedExpireAt      int64    `json:"advertisedExpireAt,omitempty"`
+}
+
+// AllURLs отдаёт адреса для обновления по порядку: основной, затем запасные.
+// Пустые, дубли и повторы основного выкидываются.
+func (s Subscription) AllURLs() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, candidate := range append([]string{s.URL}, s.MirrorURLs...) {
+		trimmed := strings.TrimSpace(candidate)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, trimmed)
+	}
+	return out
+}
+
+// XrayGeoSources - откуда качать базы geoip и geosite. Пустое поле означает
+// источник по умолчанию: свой адрес нужен тем, кто держит собственную сборку
+// правил или не достаёт до github.
+type XrayGeoSources struct {
+	GeoIPURL   string `json:"geoipUrl,omitempty"`
+	GeoSiteURL string `json:"geositeUrl,omitempty"`
+}
+
+// XrayRoutingMatch - по чему правило матчит трафик. Значения совпадают с тем, что
+// понимает конфиг Xray, и с общей схемой wingsv, чтобы правила переносились из
+// приложения без перевода.
+type XrayRoutingMatch string
+
+const (
+	RoutingMatchGeoIP    XrayRoutingMatch = "geoip"
+	RoutingMatchGeoSite  XrayRoutingMatch = "geosite"
+	RoutingMatchDomain   XrayRoutingMatch = "domain"
+	RoutingMatchIP       XrayRoutingMatch = "ip"
+	RoutingMatchPort     XrayRoutingMatch = "port"
+	RoutingMatchNetwork  XrayRoutingMatch = "network"
+	RoutingMatchProtocol XrayRoutingMatch = "protocol"
+)
+
+// XrayRoutingAction - куда отправить совпавшее.
+type XrayRoutingAction string
+
+const (
+	RoutingActionProxy  XrayRoutingAction = "proxy"
+	RoutingActionDirect XrayRoutingAction = "direct"
+	RoutingActionBlock  XrayRoutingAction = "block"
+)
+
+// XrayRoutingRule - одно правило маршрутизации. Code для geoip и geosite это код
+// без префикса (ru, category-ads-all), для остальных - список через запятую.
+type XrayRoutingRule struct {
+	ID      string            `json:"id"`
+	Match   XrayRoutingMatch  `json:"match"`
+	Code    string            `json:"code"`
+	Action  XrayRoutingAction `json:"action"`
+	Enabled bool              `json:"enabled"`
+}
+
+// NormalizedMatch приводит тип к известному, по умолчанию geoip - как в приложении.
+func (r XrayRoutingRule) NormalizedMatch() XrayRoutingMatch {
+	switch XrayRoutingMatch(strings.ToLower(string(r.Match))) {
+	case RoutingMatchGeoSite:
+		return RoutingMatchGeoSite
+	case RoutingMatchDomain:
+		return RoutingMatchDomain
+	case RoutingMatchIP:
+		return RoutingMatchIP
+	case RoutingMatchPort:
+		return RoutingMatchPort
+	case RoutingMatchNetwork:
+		return RoutingMatchNetwork
+	case RoutingMatchProtocol:
+		return RoutingMatchProtocol
+	default:
+		return RoutingMatchGeoIP
+	}
+}
+
+// NormalizedAction приводит действие к известному, по умолчанию proxy.
+func (r XrayRoutingRule) NormalizedAction() XrayRoutingAction {
+	switch XrayRoutingAction(strings.ToLower(string(r.Action))) {
+	case RoutingActionDirect:
+		return RoutingActionDirect
+	case RoutingActionBlock:
+		return RoutingActionBlock
+	default:
+		return RoutingActionProxy
+	}
+}
+
+// NeedsGeoAssets - правилу нужны файлы geoip.dat / geosite.dat рядом с ядром.
+func (r XrayRoutingRule) NeedsGeoAssets() bool {
+	match := r.NormalizedMatch()
+	return match == RoutingMatchGeoIP || match == RoutingMatchGeoSite
 }
 
 // The built-in "Universal" subscription, seeded once on a fresh store.

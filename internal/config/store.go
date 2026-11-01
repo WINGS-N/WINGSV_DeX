@@ -31,11 +31,16 @@ type storeData struct {
 	AppRouting     AppRoutingSettings `json:"appRouting"`     // per-app split-tunnel mode + lists
 
 	// Xray backend state, parallel to the VK TURN profiles above.
-	XrayProfiles     []XrayProfile  `json:"xrayProfiles"`
-	XrayActiveID     string         `json:"xrayActiveId"`
-	XraySettings     XraySettings   `json:"xraySettings"`
-	Subscriptions    []Subscription `json:"subscriptions"`
-	DefaultSubSeeded bool           `json:"defaultSubSeeded"` // the built-in Universal sub was added once
+	XrayProfiles []XrayProfile `json:"xrayProfiles"`
+	XrayActiveID string        `json:"xrayActiveId"`
+	XraySettings XraySettings  `json:"xraySettings"`
+	// Правила маршрутизации Xray: geoip, geosite, домены, адреса, порты и прочее.
+	// Порядок значим - Xray берёт первое совпавшее
+	XrayRoutingRules []XrayRoutingRule `json:"xrayRoutingRules,omitempty"`
+	// Свои адреса баз geoip и geosite; пустые означают источники по умолчанию
+	XrayGeoSources XrayGeoSources `json:"xrayGeoSources,omitempty"`
+	Subscriptions    []Subscription    `json:"subscriptions"`
+	DefaultSubSeeded bool              `json:"defaultSubSeeded"` // the built-in Universal sub was added once
 	// CaptchaBypassSeeded records that stored profiles were moved off the old "v2"
 	// solver default onto the vk.me captcha-free path once. Without the flag the
 	// migration would keep overriding a user who deliberately picks v2 back.
@@ -410,6 +415,63 @@ func (s *Store) XraySettings() XraySettings {
 	return x
 }
 
+// XrayRoutingRules отдаёт копию правил: вызывающий правит свой срез, не стор.
+func (s *Store) XrayRoutingRules() []XrayRoutingRule {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]XrayRoutingRule, len(s.data.XrayRoutingRules))
+	copy(out, s.data.XrayRoutingRules)
+	return out
+}
+
+// SetXrayRoutingRules сохраняет правила: пустой код выкидывается, типы и действия
+// приводятся к известным, а пустой id получает свой.
+func (s *Store) SetXrayRoutingRules(rules []XrayRoutingRule) ([]XrayRoutingRule, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cleaned := make([]XrayRoutingRule, 0, len(rules))
+	for _, rule := range rules {
+		rule.Code = strings.TrimSpace(rule.Code)
+		if rule.Code == "" {
+			continue
+		}
+		rule.Match = rule.NormalizedMatch()
+		rule.Action = rule.NormalizedAction()
+		if strings.TrimSpace(rule.ID) == "" {
+			rule.ID = newID()
+		}
+		cleaned = append(cleaned, rule)
+	}
+	s.data.XrayRoutingRules = cleaned
+	if err := s.saveLocked(); err != nil {
+		return nil, err
+	}
+	out := make([]XrayRoutingRule, len(cleaned))
+	copy(out, cleaned)
+	return out, nil
+}
+
+// XrayGeoSources отдаёт свои адреса баз.
+func (s *Store) XrayGeoSources() XrayGeoSources {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.XrayGeoSources
+}
+
+// SetXrayGeoSources сохраняет свои адреса баз; пустая строка возвращает источник
+// по умолчанию.
+func (s *Store) SetXrayGeoSources(sources XrayGeoSources) (XrayGeoSources, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sources.GeoIPURL = strings.TrimSpace(sources.GeoIPURL)
+	sources.GeoSiteURL = strings.TrimSpace(sources.GeoSiteURL)
+	s.data.XrayGeoSources = sources
+	if err := s.saveLocked(); err != nil {
+		return XrayGeoSources{}, err
+	}
+	return s.data.XrayGeoSources, nil
+}
+
 // SetXraySettings persists the Xray settings, backstopping defaults and ensuring the
 // local proxy credentials exist when auth is enabled.
 func (s *Store) SetXraySettings(x XraySettings) error {
@@ -542,6 +604,39 @@ func (s *Store) SetSubscriptionAutoUpdate(id string, on bool) error {
 		}
 	}
 	return errors.New("unknown subscription")
+}
+
+// SetSubscriptionMirrors заменяет список запасных адресов подписки и отдаёт её
+// обновлённой: по ним обновление пойдёт, когда основной адрес перестал отвечать.
+func (s *Store) SetSubscriptionMirrors(id string, mirrors []string) (Subscription, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.data.Subscriptions {
+		if s.data.Subscriptions[i].ID != id {
+			continue
+		}
+		primary := strings.ToLower(strings.TrimSpace(s.data.Subscriptions[i].URL))
+		seen := map[string]bool{primary: true}
+		cleaned := make([]string, 0, len(mirrors))
+		for _, candidate := range mirrors {
+			trimmed := strings.TrimSpace(candidate)
+			if trimmed == "" {
+				continue
+			}
+			key := strings.ToLower(trimmed)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			cleaned = append(cleaned, trimmed)
+		}
+		s.data.Subscriptions[i].MirrorURLs = cleaned
+		if err := s.saveLocked(); err != nil {
+			return Subscription{}, err
+		}
+		return s.data.Subscriptions[i], nil
+	}
+	return Subscription{}, errors.New("unknown subscription")
 }
 
 // ApplySubscriptionNodes replaces the Xray profiles belonging to a subscription with a
