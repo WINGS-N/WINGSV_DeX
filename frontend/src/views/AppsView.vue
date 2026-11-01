@@ -4,7 +4,13 @@
 
     <div class="px-4">
       <SamsungCard kicker="Маршрутизация приложений" subtitle="Особое правило VPN для выбранных приложений">
-        <div class="routing-mode-picker py-3" role="radiogroup" aria-label="Режим маршрутизации">
+        <template v-if="!supported" #actions>
+          <SamsungPill>Только Linux</SamsungPill>
+        </template>
+        <p v-if="!supported" class="py-3 text-sm text-wings-muted">
+          На этой системе фильтрация по программам недоступна: весь трафик идёт через VPN.
+        </p>
+        <div v-else class="routing-mode-picker py-3" role="radiogroup" aria-label="Режим маршрутизации">
           <button
             v-for="opt in modeOptions"
             :key="opt.value"
@@ -21,10 +27,10 @@
             <span class="routing-mode-label">{{ opt.label }}</span>
           </button>
         </div>
-        <p class="pb-2 text-sm text-wings-muted">{{ modeHint }}</p>
+        <p v-if="supported" class="pb-2 text-sm text-wings-muted">{{ modeHint }}</p>
       </SamsungCard>
 
-      <SamsungCard v-if="routing.mode !== 'off'" kicker="Приложения" class="mt-5">
+      <SamsungCard v-if="supported && routing.mode !== 'off'" kicker="Приложения" class="mt-5">
         <div class="py-3">
           <OneuiInput v-model="search" placeholder="Поиск по имени или файлу" :spellcheck="false" />
         </div>
@@ -91,6 +97,7 @@ const modeHints = {
 };
 
 const ready = ref(false);
+const supported = ref(true);
 const error = ref('');
 const apps = ref([]);
 const search = ref('');
@@ -157,11 +164,15 @@ function toggle(exec, on) {
 
 onMounted(async () => {
   try {
+    supported.value = (await AppsService.Supported()) !== false;
     const r = await AppsService.Routing();
     routing.mode = r?.mode || 'off';
     routing.bypass = Array.isArray(r?.bypass) ? [...r.bypass] : [];
     routing.whitelist = Array.isArray(r?.whitelist) ? [...r.whitelist] : [];
-    apps.value = (await AppsService.List()) ?? [];
+    // Список .desktop есть только там, где фильтрация работает
+    if (supported.value) {
+      apps.value = (await AppsService.List()) ?? [];
+    }
   } catch (e) {
     error.value = String(e?.message ?? e ?? 'Не удалось загрузить приложения');
   } finally {
