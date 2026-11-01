@@ -45,7 +45,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import { Wifi } from 'lucide-vue-next';
+import { Wifi } from '@lucide/vue';
 import { Events } from '@wailsio/runtime';
 import { AutoSearchService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SuwButton from '@/components/onboarding/SuwButton.vue';

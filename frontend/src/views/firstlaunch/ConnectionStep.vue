@@ -38,7 +38,7 @@
 </template>
 
 <script setup>
-import { ClipboardPaste, QrCode } from 'lucide-vue-next';
+import { ClipboardPaste, QrCode } from '@lucide/vue';
 import SuwButton from '@/components/onboarding/SuwButton.vue';
 import ConnectionAnimation from '@/views/firstlaunch/ConnectionAnimation.vue';
 

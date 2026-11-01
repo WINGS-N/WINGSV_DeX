@@ -114,7 +114,7 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, reactive } from 'vue';
-import { ChevronLeft } from 'lucide-vue-next';
+import { ChevronLeft } from '@lucide/vue';
 import { ProfilesService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
 import OneuiSelect from '@/components/controls/OneuiSelect.vue';

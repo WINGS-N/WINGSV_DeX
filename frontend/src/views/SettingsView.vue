@@ -120,7 +120,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue';
-import { ChevronRight } from 'lucide-vue-next';
+import { ChevronRight } from '@lucide/vue';
 import { ConnectionService, ProfilesService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import AppHeader from '@/components/layout/AppHeader.vue';
 import SamsungCard from '@/components/layout/SamsungCard.vue';

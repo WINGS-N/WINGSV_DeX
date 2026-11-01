@@ -56,7 +56,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
-import { Check, ChevronDown } from 'lucide-vue-next';
+import { Check, ChevronDown } from '@lucide/vue';
 
 const props = defineProps({
   modelValue: { type: [String, Number], default: '' },

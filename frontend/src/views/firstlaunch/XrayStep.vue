@@ -25,7 +25,7 @@
 </template>
 
 <script setup>
-import { ClipboardPaste, Globe } from 'lucide-vue-next';
+import { ClipboardPaste, Globe } from '@lucide/vue';
 import SuwButton from '@/components/onboarding/SuwButton.vue';
 
 defineEmits(['import', 'next']);

@@ -68,7 +68,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { ChevronLeft, Copy, Trash2 } from 'lucide-vue-next';
+import { ChevronLeft, Copy, Trash2 } from '@lucide/vue';
 import { Clipboard, Events } from '@wailsio/runtime';
 import { ConnectionService, LogsService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungCard from '@/components/layout/SamsungCard.vue';

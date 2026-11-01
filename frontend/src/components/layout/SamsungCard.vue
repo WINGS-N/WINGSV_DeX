@@ -32,7 +32,7 @@
 
 <script setup>
 import { ref } from 'vue';
-import { ChevronDown } from 'lucide-vue-next';
+import { ChevronDown } from '@lucide/vue';
 
 const props = defineProps({
   kicker: { type: String, default: '' },

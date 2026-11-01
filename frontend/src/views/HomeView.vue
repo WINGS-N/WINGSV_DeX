@@ -102,7 +102,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
-import { ArrowDown, ArrowUp, ClipboardPaste, Copy, Globe, Radio, RefreshCw } from 'lucide-vue-next';
+import { ArrowDown, ArrowUp, ClipboardPaste, Copy, Globe, Radio, RefreshCw } from '@lucide/vue';
 import { Clipboard, Events } from '@wailsio/runtime';
 import { ConnectionService, ProfilesService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import AppHeader from '@/components/layout/AppHeader.vue';

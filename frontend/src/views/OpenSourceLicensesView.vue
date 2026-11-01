@@ -41,7 +41,7 @@
 </template>
 
 <script setup>
-import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight } from '@lucide/vue';
 import { Browser } from '@wailsio/runtime';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
 import AvatarCircle from '@/components/layout/AvatarCircle.vue';

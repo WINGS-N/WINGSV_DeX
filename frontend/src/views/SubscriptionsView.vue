@@ -89,7 +89,7 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { ChevronLeft, RefreshCw, Trash2 } from 'lucide-vue-next';
+import { ChevronLeft, RefreshCw, Trash2 } from '@lucide/vue';
 import { Events } from '@wailsio/runtime';
 import { SubscriptionService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungCard from '@/components/layout/SamsungCard.vue';

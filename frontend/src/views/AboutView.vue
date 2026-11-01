@@ -138,7 +138,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, Download, RefreshCw } from '@lucide/vue';
 import { Browser, Events } from '@wailsio/runtime';
 import { AboutService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungCard from '@/components/layout/SamsungCard.vue';

@@ -54,7 +54,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { ChevronLeft } from 'lucide-vue-next';
+import { ChevronLeft } from '@lucide/vue';
 import { Events } from '@wailsio/runtime';
 import { ByeDpiStrategyService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungButton from '@/components/layout/SamsungButton.vue';

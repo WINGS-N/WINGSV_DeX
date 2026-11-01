@@ -111,7 +111,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import { ChevronLeft, Wifi } from 'lucide-vue-next';
+import { ChevronLeft, Wifi } from '@lucide/vue';
 import { Events } from '@wailsio/runtime';
 import { AutoSearchService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungCard from '@/components/layout/SamsungCard.vue';

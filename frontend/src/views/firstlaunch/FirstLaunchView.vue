@@ -40,7 +40,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { ShieldCheck } from 'lucide-vue-next';
+import { ShieldCheck } from '@lucide/vue';
 import { Clipboard } from '@wailsio/runtime';
 import { ProfilesService, OnboardingService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import { closeOnboarding } from '@/stores/onboarding.js';

@@ -339,7 +339,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { ChevronLeft, ChevronRight, ClipboardPaste } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, ClipboardPaste } from '@lucide/vue';
 import { Clipboard, Events } from '@wailsio/runtime';
 import { ProfilesService, VKAuthService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import { closeOverlay } from '@/stores/nav.js';

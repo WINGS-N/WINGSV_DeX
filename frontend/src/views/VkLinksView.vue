@@ -40,7 +40,7 @@
         <p v-else class="py-3 text-sm text-wings-muted">Ссылок пока нет.</p>
         <div class="flex items-end gap-2 pb-2">
           <div class="flex-1">
-            <OneuiInput v-model="newLink" placeholder="https://vk.com/call/join/..." :spellcheck="false" />
+            <OneuiInput v-model="newLink" placeholder="https://vk.ru/call/join/..." :spellcheck="false" />
           </div>
           <SamsungButton variant="secondary" :disabled="!newLink.trim()" @click="addLink">Добавить</SamsungButton>
         </div>
@@ -61,7 +61,7 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { ChevronLeft, Trash2 } from 'lucide-vue-next';
+import { ChevronLeft, Trash2 } from '@lucide/vue';
 import OneuiInput from '@/components/controls/OneuiInput.vue';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
 import SamsungButton from '@/components/layout/SamsungButton.vue';

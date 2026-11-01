@@ -44,7 +44,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { House, User, LayoutGrid, Settings } from 'lucide-vue-next';
+import { House, User, LayoutGrid, Settings } from '@lucide/vue';
 import { Events } from '@wailsio/runtime';
 import HomeView from '@/views/HomeView.vue';
 import ProfilesView from '@/views/ProfilesView.vue';

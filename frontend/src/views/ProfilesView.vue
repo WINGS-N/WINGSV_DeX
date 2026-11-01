@@ -208,7 +208,7 @@ import {
   RefreshCw,
   Star,
   Trash2,
-} from 'lucide-vue-next';
+} from '@lucide/vue';
 import { Clipboard, Events } from '@wailsio/runtime';
 import {
   ConnectionService,

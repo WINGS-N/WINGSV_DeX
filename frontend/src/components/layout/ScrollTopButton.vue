@@ -13,7 +13,7 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { ChevronUp } from 'lucide-vue-next';
+import { ChevronUp } from '@lucide/vue';
 
 // Floating "scroll to top" button, reused across the profiles, apps and strategy lists. It
 // finds its own nearest scrollable ancestor on mount, so it works both inside a tab (the

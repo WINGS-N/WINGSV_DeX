@@ -68,7 +68,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
-import { PowerOff, Split, ShieldCheck } from 'lucide-vue-next';
+import { PowerOff, Split, ShieldCheck } from '@lucide/vue';
 import { AppsService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import AppHeader from '@/components/layout/AppHeader.vue';
 import SamsungCard from '@/components/layout/SamsungCard.vue';

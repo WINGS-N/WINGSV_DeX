@@ -166,7 +166,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive } from 'vue';
-import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, Trash2 } from '@lucide/vue';
 import { ProfilesService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
 import SamsungButton from '@/components/layout/SamsungButton.vue';

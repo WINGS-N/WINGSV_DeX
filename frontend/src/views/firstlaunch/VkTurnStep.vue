@@ -25,7 +25,7 @@
 </template>
 
 <script setup>
-import { ClipboardPaste, KeyRound } from 'lucide-vue-next';
+import { ClipboardPaste, KeyRound } from '@lucide/vue';
 import SuwButton from '@/components/onboarding/SuwButton.vue';
 
 defineEmits(['import', 'next']);

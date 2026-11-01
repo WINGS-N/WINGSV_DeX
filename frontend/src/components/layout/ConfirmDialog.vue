@@ -72,7 +72,7 @@
 
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue';
-import { AlertTriangle, ChevronLeft } from 'lucide-vue-next';
+import { AlertTriangle, ChevronLeft } from '@lucide/vue';
 import SamsungModal from '@/components/layout/SamsungModal.vue';
 import SamsungButton from '@/components/layout/SamsungButton.vue';
 import { confirmState, settleConfirm } from '@/stores/confirm.js';

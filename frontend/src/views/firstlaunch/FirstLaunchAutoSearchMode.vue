@@ -21,7 +21,7 @@
 </template>
 
 <script setup>
-import { BarChart3 } from 'lucide-vue-next';
+import { BarChart3 } from '@lucide/vue';
 import SuwButton from '@/components/onboarding/SuwButton.vue';
 
 defineEmits(['mode']);

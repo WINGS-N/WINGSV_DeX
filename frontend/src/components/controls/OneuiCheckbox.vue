@@ -9,7 +9,7 @@
 </template>
 
 <script setup>
-import { Check } from 'lucide-vue-next';
+import { Check } from '@lucide/vue';
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

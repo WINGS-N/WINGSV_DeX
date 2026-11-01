@@ -23,7 +23,7 @@
 </template>
 
 <script setup>
-import { Check } from 'lucide-vue-next';
+import { Check } from '@lucide/vue';
 import SuwButton from '@/components/onboarding/SuwButton.vue';
 
 defineEmits(['finish']);
