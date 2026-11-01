@@ -1,6 +1,24 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+/* Палитра wings и content-глобы остались в js-конфиге: tailwind 4 читает его через
+   @config, и переносить токены в @theme ради самого переноса смысла нет */
+@config "../tailwind.config.js";
+
+/* Эти три используются в @apply, а в tailwind 4 так можно только с настоящими
+   utilities - поэтому они объявлены через @utility, а не в @layer components */
+@utility surface-card {
+  @apply rounded-[28px] border border-wings-border bg-wings-card p-7 text-wings-text shadow-card;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+@utility action-button {
+  @apply inline-flex items-center justify-center gap-2 rounded-full border-none px-6 font-samsung text-[15px] font-bold leading-none transition-colors duration-150 ease-in-out;
+  min-height: 48px;
+}
+
+@utility rounded-inherit {
+  border-radius: inherit;
+}
 
 /* =========================================================================
    FONTS — Samsung Sharp Sans (Latin headings) + SamsungOne (everything else).
@@ -196,12 +214,6 @@
      No glassmorphism, no glow.
      ===================================================================== */
 
-  .surface-card {
-    @apply rounded-[28px] border border-wings-border bg-wings-card p-7 text-wings-text shadow-card;
-    max-width: 100%;
-    overflow-x: auto;
-  }
-
   /* Inset surface used inside cards — tabs panes, form sections, list rows. */
   .surface-inset {
     @apply rounded-[20px] border border-wings-border bg-wings-surface p-5;
@@ -271,11 +283,6 @@
 
   .actions-row {
     @apply mt-5 flex flex-wrap gap-3;
-  }
-
-  .action-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-full border-none px-6 font-samsung text-[15px] font-bold leading-none transition-colors duration-150 ease-in-out;
-    min-height: 48px;
   }
 
   .action-button:disabled {
@@ -1416,12 +1423,6 @@
 /* =========================================================================
    UTILITIES
    ========================================================================= */
-
-@layer utilities {
-  .rounded-inherit {
-    border-radius: inherit;
-  }
-}
 
 /* =========================================================================
    RESPONSIVE — mobile compaction.
