@@ -38,9 +38,9 @@ type storeData struct {
 	// Порядок значим - Xray берёт первое совпавшее
 	XrayRoutingRules []XrayRoutingRule `json:"xrayRoutingRules,omitempty"`
 	// Свои адреса баз geoip и geosite; пустые означают источники по умолчанию
-	XrayGeoSources XrayGeoSources `json:"xrayGeoSources,omitempty"`
-	Subscriptions    []Subscription    `json:"subscriptions"`
-	DefaultSubSeeded bool              `json:"defaultSubSeeded"` // the built-in Universal sub was added once
+	XrayGeoSources   XrayGeoSources `json:"xrayGeoSources,omitempty"`
+	Subscriptions    []Subscription `json:"subscriptions"`
+	DefaultSubSeeded bool           `json:"defaultSubSeeded"` // the built-in Universal sub was added once
 	// CaptchaBypassSeeded records that stored profiles were moved off the old "v2"
 	// solver default onto the vk.me captcha-free path once. Without the flag the
 	// migration would keep overriding a user who deliberately picks v2 back.

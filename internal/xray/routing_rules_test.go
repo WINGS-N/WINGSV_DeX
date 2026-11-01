@@ -134,9 +134,9 @@ func TestDisabledAndEmptyRulesAreDropped(t *testing.T) {
 // Действие переводится в тег аутбаунда, неизвестное - в proxy.
 func TestActionMapsToOutboundTag(t *testing.T) {
 	cases := map[config.XrayRoutingAction]string{
-		config.RoutingActionDirect: "direct",
-		config.RoutingActionBlock:  "block",
-		config.RoutingActionProxy:  "proxy",
+		config.RoutingActionDirect:        "direct",
+		config.RoutingActionBlock:         "block",
+		config.RoutingActionProxy:         "proxy",
 		config.XrayRoutingAction("нечто"): "proxy",
 	}
 	for action, want := range cases {
