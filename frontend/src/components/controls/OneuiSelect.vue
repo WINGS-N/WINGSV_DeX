@@ -105,9 +105,19 @@ function toggle() {
   nextTick(() => {
     document.addEventListener('click', onDocClick);
     document.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', close, true);
+    window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', close);
   });
+}
+
+// Список длиннее панели скроллится сам, и закрывать его от собственного скролла
+// нельзя - человек не успевает доехать до нужного пункта. Закрываемся только когда
+// уехала страница под нами
+function onScroll(event) {
+  if (panel.value && event.target instanceof Node && panel.value.contains(event.target)) {
+    return;
+  }
+  close();
 }
 
 function close() {
@@ -115,7 +125,7 @@ function close() {
   open.value = false;
   document.removeEventListener('click', onDocClick);
   document.removeEventListener('keydown', onKey);
-  window.removeEventListener('scroll', close, true);
+  window.removeEventListener('scroll', onScroll, true);
   window.removeEventListener('resize', close);
 }
 
