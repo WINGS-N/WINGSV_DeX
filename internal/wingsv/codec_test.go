@@ -1,6 +1,8 @@
 package wingsv
 
 import (
+	"encoding/base64"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -113,6 +115,56 @@ func TestBothFormatsDecode(t *testing.T) {
 		}
 		if len(got.GetXray().GetProfiles()) != 1 {
 			t.Errorf("профили потерялись: %+v", got.GetXray())
+		}
+	}
+}
+
+// Подчёркивания в новом формате не бывает вовсе: мессенджеры читают пару подряд
+// как разметку и съедают кусок ссылки. Проверяем на данных, где в base64url
+// подчёркивания гарантированно были бы
+func TestLinkCarriesNoUnderscore(t *testing.T) {
+	profiles := make([]*wingsvpb.VlessProfile, 0, 24)
+	for i := range 24 {
+		profiles = append(profiles, &wingsvpb.VlessProfile{
+			Id:      fmt.Sprintf("p%d", i),
+			RawLink: fmt.Sprintf("vless://%x@%d.%d.%d.%d:443?flow=xtls-rprx-vision#node%d", i*7919, i, i+3, i+7, i+11, i),
+		})
+	}
+	config := &wingsvpb.Config{
+		Ver:  1,
+		Type: wingsvpb.ConfigType_CONFIG_TYPE_XRAY,
+		Xray: &wingsvpb.Xray{Profiles: profiles},
+	}
+	link, err := Encode(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(link, "_") {
+		t.Errorf("в ссылке осталось подчёркивание: %s", link)
+	}
+	if strings.HasSuffix(link, ".") {
+		t.Errorf("ссылка кончается точкой, автолинковка её обрежет: %s", link)
+	}
+	got, err := Decode(link)
+	if err != nil {
+		t.Fatalf("своя же ссылка не разобралась: %v", err)
+	}
+	if len(got.GetXray().GetProfiles()) != len(profiles) {
+		t.Errorf("профилей на выходе %d, ждали %d", len(got.GetXray().GetProfiles()), len(profiles))
+	}
+}
+
+// Хвостовая точка закрывается знаком равенства, и такая ссылка обязана читаться
+func TestTrailingDotIsClosed(t *testing.T) {
+	for _, framed := range [][]byte{{0x13, 0xff}, {0x13, 0xbf, 0xff}, {0x13, 0x0f, 0xff, 0xff}} {
+		encoded := encodeLinkPayload(framed)
+		if strings.HasSuffix(encoded, ".") {
+			t.Errorf("хвостовая точка осталась: %s", encoded)
+		}
+		round := strings.TrimRight(encoded, "=")
+		round = strings.ReplaceAll(round, ".", "_")
+		if _, err := base64.RawURLEncoding.DecodeString(round); err != nil {
+			t.Errorf("тело %s не декодируется назад: %v", encoded, err)
 		}
 	}
 }

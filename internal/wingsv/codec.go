@@ -34,7 +34,7 @@ const (
 // linkPattern matches a wingsv:// link inside arbitrary pasted text, mirroring the
 // app's LINK_PATTERN. The body allows both url-safe and standard base64 alphabets.
 var (
-	linkPattern     = regexp.MustCompile(`wingsv://[A-Za-z0-9_\-+/=]+`)
+	linkPattern     = regexp.MustCompile(`wingsv://[A-Za-z0-9_.\-+/=]+`)
 	whitespaceRegex = regexp.MustCompile(`\s+`)
 )
 
@@ -85,6 +85,10 @@ func decodePayload(link string) ([]byte, error) {
 	payload := strings.TrimSpace(link[len(SchemePrefix):])
 	payload = strings.TrimLeft(payload, "/")
 	payload = whitespaceRegex.ReplaceAllString(payload, "")
+	// Точка - 63-й символ нашего алфавита; в ссылках прошлого формата её нет,
+	// поэтому замена безобидна для обоих
+	payload = strings.TrimRight(payload, "=")
+	payload = strings.ReplaceAll(payload, ".", "_")
 	payload = normalizePadding(payload)
 	if b, err := base64.URLEncoding.DecodeString(payload); err == nil {
 		return b, nil
@@ -121,11 +125,25 @@ func Encode(config *wingsvpb.Config) (string, error) {
 	if err := bw.Close(); err != nil {
 		return "", fmt.Errorf("wingsv: brotli close: %w", err)
 	}
-	return SchemePrefix + base64.URLEncoding.EncodeToString(buf.Bytes()), nil
+	return SchemePrefix + encodeLinkPayload(buf.Bytes()), nil
 }
 
-// EncodeDeflate собирает ссылку старым форматом. Нужен там, где на той стороне
-// заведомо старая сборка
+// encodeLinkPayload кодирует кадр в тело ссылки. Отличие от base64url одно: 63-й
+// символ алфавита не подчёркивание, а точка. Пара подчёркиваний подряд выходила
+// сама собой, а мессенджеры читают её как разметку и съедают кусок ссылки.
+//
+// Завершающую точку автолинковка обрезает как знак конца предложения, поэтому
+// такой хвост закрывается знаком равенства - его декодер снимает вместе с padding
+func encodeLinkPayload(framed []byte) string {
+	encoded := strings.ReplaceAll(base64.RawURLEncoding.EncodeToString(framed), "_", ".")
+	if strings.HasSuffix(encoded, ".") {
+		encoded += "="
+	}
+	return encoded
+}
+
+// EncodeDeflate собирает ссылку старым форматом, с прежним алфавитом: на той
+// стороне заведомо старая сборка, а точку она не прочитает
 func EncodeDeflate(config *wingsvpb.Config) (string, error) {
 	raw, err := proto.Marshal(config)
 	if err != nil {
