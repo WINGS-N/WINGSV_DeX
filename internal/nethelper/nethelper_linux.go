@@ -217,6 +217,10 @@ func Run() error {
 			appsDown()
 			_ = enc.Encode(reply{OK: true})
 		case "xrayup":
+			if err := validateBundledBinary(cmd.XrayBin, "xray"); err != nil {
+				_ = enc.Encode(reply{Error: err.Error()})
+				continue
+			}
 			if xray != nil {
 				xray.stop()
 				xray = nil
@@ -237,6 +241,10 @@ func Run() error {
 			}
 			_ = enc.Encode(reply{OK: true})
 		case "byedpiup":
+			if err := validateBundledBinary(cmd.ByeDPIBin, "byedpi"); err != nil {
+				_ = enc.Encode(reply{Error: err.Error()})
+				continue
+			}
 			if byedpi != nil {
 				byedpi.stop()
 				byedpi = nil
