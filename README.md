@@ -62,16 +62,20 @@
 2. Получите ссылку-профиль `wingsv://` (её выдаёт тот, кто раздаёт вам доступ), скопируйте её и нажмите **«Вставить из буфера»**.
 3. Нажмите круглую кнопку - готово, вы подключены.
 
-## NixOS source checkout
+## NixOS (x86_64-linux)
 
-On x86_64-linux, clone the repository with its submodules and run from its root:
+Из исходников соберите пакет и запустите его из любого каталога:
 
 ```sh
-git submodule update --init --recursive
-nix run .
+nix build .
+./result/bin/wingsv-dex
 ```
 
-The first run builds the Wails CLI, the frontend, the application, and its three helper binaries. Go and pnpm dependencies are downloaded into user caches, so a network connection is needed on a fresh checkout. `nix develop` provides the same toolchain for manual development.
+`nix run .` запускает тот же пакет. Сборка фиксирует Go-модули, pnpm-зависимости и ревизии четырёх сабмодулей; при запуске не требуются исходники, Go, pnpm или загрузка зависимостей. Локальные изменения основного репозитория учитываются flake, если файлы отслеживаются Git. `nix develop .` предоставляет инструменты для ручной разработки; для обычного `task build` в checkout по-прежнему инициализируйте сабмодули (`git submodule update --init --recursive`).
+
+Для подключения VPN на NixOS нужен включённый polkit и стандартный setuid-wrapper `/run/wrappers/bin/pkexec` в `PATH` (например, `security.polkit.enable = true;` в конфигурации системы). Приложение запрашивает пароль только для сетевого помощника; GUI не запускается от root. VPN и авторизацию polkit проверяйте отдельно. Desktop entry обрабатывает `wingsv://` и `vless://`, если пакет установлен в профиль с интеграцией desktop-файлов.
+
+Встроенное самообновление Nix-пакета отключено: обновляйте его средствами Nix. Сборка рассчитана на x86_64-linux; для запуска GUI необходима графическая сессия с GTK4 и WebKitGTK 6.0, предоставляемыми пакетом через nixpkgs.
 
 ## Что используется
 

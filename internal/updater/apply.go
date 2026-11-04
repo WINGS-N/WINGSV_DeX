@@ -25,10 +25,13 @@ type Progress struct {
 // through the package manager, loose kinds (plain binary, AppImage, Windows portable) swap
 // the executable at its current path and refresh the vkturn child beside it.
 func Apply(res Result, cb func(Progress)) error {
+	inst := Detect()
+	if inst.Kind == KindNix {
+		return errors.New("updates for Nix-installed builds must be applied with your Nix package manager")
+	}
 	if res.AppAsset == nil {
 		return errors.New("no matching release asset for this install")
 	}
-	inst := Detect()
 	tmp, err := os.MkdirTemp("", "wingsv-dex-update-*")
 	if err != nil {
 		return err
