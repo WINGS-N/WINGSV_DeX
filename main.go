@@ -10,6 +10,7 @@ import (
 	"runtime"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/WINGS-N/wingsv-dex/internal/applog"
 	"github.com/WINGS-N/wingsv-dex/internal/config"
@@ -49,6 +50,12 @@ func main() {
 	}
 
 	configDir := appConfigDir()
+	autostart := false
+	for _, arg := range os.Args[1:] {
+		if arg == "--autostart" {
+			autostart = true
+		}
+	}
 
 	store, err := config.NewStore(filepath.Join(configDir, "profiles.json"))
 	if err != nil {
@@ -160,11 +167,17 @@ func main() {
 		Connect:    func() { go func() { _, _ = connectionSvc.Connect() }() },
 		Disconnect: func() { connectionSvc.Disconnect() },
 		StateEvent: services.ConnectionStateEvent,
+		Hidden:     autostart,
 	})
 
 	deliver = func(link string) {
 		deepLinkSvc.Deliver(link)
 		ctrl.Show()
+	}
+	if autostart {
+		app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+			ctrl.Connect()
+		})
 	}
 
 	// Cold launch from a scheme link: hold it for the frontend to pull once it mounts.

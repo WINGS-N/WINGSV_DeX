@@ -63,6 +63,7 @@
       };
     in {
       packages.${system}.default = package;
+      nixosModules.default = import ./nix/module.nix { inherit package; };
       apps.${system}.default = { type = "app"; program = "${package}/bin/wingsv-dex"; };
 
       devShells.${system}.default = pkgs.mkShell {

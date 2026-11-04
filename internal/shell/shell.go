@@ -22,6 +22,7 @@ type Deps struct {
 	Connect    func()        // start connecting (must not block)
 	Disconnect func()        // disconnect
 	StateEvent string        // app event emitted when the connection status changes
+	Hidden     bool
 }
 
 // Controller wires the window and the tray together.
@@ -49,6 +50,7 @@ func New(app *application.App, deps Deps) *Controller {
 		MinHeight:        640,
 		BackgroundColour: application.NewRGB(0, 0, 0),
 		URL:              "/",
+		Hidden:           deps.Hidden,
 		Linux:            application.LinuxWindow{Icon: iconPNG},
 	})
 
@@ -84,6 +86,13 @@ func New(app *application.App, deps Deps) *Controller {
 	}
 	c.refresh()
 	return c
+}
+
+// Connect starts an automatic connection without exposing the window.
+func (c *Controller) Connect() {
+	if c.deps.Connect != nil {
+		c.deps.Connect()
+	}
 }
 
 func (c *Controller) buildMenu() *application.Menu {
