@@ -2,9 +2,31 @@ package config
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestValidateSubscriptionProxyURL(t *testing.T) {
+	for _, raw := range []string{"http://example.com:8080", "http://user:pass@127.0.0.1:8080", "https://127.0.0.1:8080", "socks5://127.0.0.1:1080", "http://127.0.0.1", "http://[2001:db8::1]:8080"} {
+		if _, err := ValidateSubscriptionProxyURL(raw); err == nil {
+			t.Errorf("ValidateSubscriptionProxyURL(%q) accepted", raw)
+		}
+	}
+	for _, raw := range []string{"", "http://127.0.0.1:8080", "http://[::1]:8080", "http://localhost:8080"} {
+		if _, err := ValidateSubscriptionProxyURL(raw); err != nil {
+			t.Errorf("ValidateSubscriptionProxyURL(%q): %v", raw, err)
+		}
+	}
+	encoded, err := json.Marshal(Subscription{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "proxyUrl") {
+		t.Fatalf("unset proxy was not omitted: %s", encoded)
+	}
+}
 
 func TestParseShareLinkVless(t *testing.T) {
 	link := "vless://b831381d-6324-4d53-ad4f-8cda48b30811@v.wingsnet.org:443?encryption=none&security=tls#Cyprus%20Node"

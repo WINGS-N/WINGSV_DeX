@@ -3,6 +3,8 @@ package config
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -171,9 +173,10 @@ func xrayPingKey(p XrayProfile) string { return p.SubscriptionID + "|" + p.Dedup
 // fields are the per-subscription traffic quota reported by the server's
 // Subscription-Userinfo response header (upload/download/total bytes and an expiry).
 type Subscription struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	URL   string `json:"url"`
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	URL      string `json:"url"`
+	ProxyURL string `json:"proxyUrl,omitempty"`
 	// Запасные адреса той же подписки: если основной перестал отвечать, обновление
 	// идёт по ним по порядку, и один упавший хост не оставляет человека без узлов
 	MirrorURLs              []string `json:"mirrorUrls,omitempty"`
@@ -184,6 +187,27 @@ type Subscription struct {
 	AdvertisedDownloadBytes int64    `json:"advertisedDownloadBytes,omitempty"`
 	AdvertisedTotalBytes    int64    `json:"advertisedTotalBytes,omitempty"`
 	AdvertisedExpireAt      int64    `json:"advertisedExpireAt,omitempty"`
+}
+
+// ValidateSubscriptionProxyURL permits only unauthenticated loopback HTTP proxies.
+func ValidateSubscriptionProxyURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "http" || u.User != nil || u.Opaque != "" || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+		return "", errors.New("subscription proxy must be an unauthenticated loopback HTTP URL")
+	}
+	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	if host != "localhost" && !net.ParseIP(host).IsLoopback() {
+		return "", errors.New("subscription proxy must use a loopback host")
+	}
+	port, err := strconv.Atoi(u.Port())
+	if err != nil || port < 1 || port > 65535 || u.Host == "" {
+		return "", errors.New("subscription proxy must include a valid port")
+	}
+	return u.String(), nil
 }
 
 // AllURLs отдаёт адреса для обновления по порядку: основной, затем запасные.

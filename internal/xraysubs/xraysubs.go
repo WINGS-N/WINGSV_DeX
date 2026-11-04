@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -48,38 +50,56 @@ func Fetch(ctx context.Context, sub config.Subscription) (Result, error) {
 	if len(urls) == 0 {
 		return Result{}, errors.New("subscription has no url")
 	}
+	transport := &http.Transport{DisableKeepAlives: true, Proxy: http.ProxyFromEnvironment}
+	if sub.ProxyURL != "" {
+		validatedProxyURL, err := config.ValidateSubscriptionProxyURL(sub.ProxyURL)
+		if err != nil {
+			return Result{}, errors.New("invalid subscription proxy")
+		}
+		proxyURL, err := url.Parse(validatedProxyURL)
+		if err != nil {
+			return Result{}, errors.New("invalid subscription proxy")
+		}
+		transport.Proxy = http.ProxyURL(proxyURL)
+	}
+	defer transport.CloseIdleConnections()
+	jar, _ := cookiejar.New(nil)
+	client := &http.Client{Timeout: 30 * time.Second, Transport: transport, Jar: jar}
 	var failures []error
-	for _, candidate := range urls {
-		res, err := fetchFrom(ctx, sub, candidate)
+	for i, candidate := range urls {
+		res, err := fetchFrom(ctx, sub, candidate, client)
 		if err == nil {
 			return res, nil
 		}
-		failures = append(failures, fmt.Errorf("%s: %w", candidate, err))
+		failures = append(failures, fmt.Errorf("candidate %d: %w", i+1, err))
 	}
 	return Result{}, errors.Join(failures...)
 }
 
-func fetchFrom(ctx context.Context, sub config.Subscription, rawURL string) (Result, error) {
+func fetchFrom(ctx context.Context, sub config.Subscription, rawURL string, client *http.Client) (Result, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSpace(rawURL), nil)
 	if err != nil {
-		return Result{}, err
+		return Result{}, errors.New("invalid subscription URL")
 	}
 	req.Header.Set("User-Agent", "WINGSV-Dex")
-	client := &http.Client{
-		Timeout:   30 * time.Second,
-		Transport: &http.Transport{DisableKeepAlives: true, Proxy: http.ProxyFromEnvironment},
-	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return Result{}, err
+		return Result{}, errors.New("subscription request failed")
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return Result{}, fmt.Errorf("subscription returned HTTP status %d", resp.StatusCode)
+	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
 		return Result{}, err
 	}
+	nodes := ParseProfiles(string(body), sub.ID, sub.Title)
+	if len(nodes) == 0 {
+		return Result{}, errors.New("subscription response contains no valid nodes")
+	}
 	return Result{
-		Nodes: ParseProfiles(string(body), sub.ID, sub.Title),
+		Nodes: nodes,
 		Quota: ParseQuota(resp.Header.Get("Subscription-Userinfo")),
 	}, nil
 }

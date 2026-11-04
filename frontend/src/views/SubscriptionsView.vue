@@ -26,6 +26,12 @@
           <OneuiInput label="Название" v-model="newTitle" placeholder="Моя подписка" />
           <OneuiInput label="Ссылка" v-model="newUrl" placeholder="https://..." />
           <OneuiInput label="Запасные ссылки" v-model="newMirrors" placeholder="через запятую" />
+          <div class="rounded-xl border border-wings-divider bg-white/[0.03] p-3">
+            <OneuiInput label="Local HTTP proxy (optional)" v-model="newProxyUrl" placeholder="http://127.0.0.1:2080" />
+            <p class="mt-1.5 text-[12px] leading-relaxed text-wings-muted">
+              Leave blank for normal fetch. Enter a running local proxy address, such as Throne.
+            </p>
+          </div>
           <div class="flex justify-end">
             <SamsungButton variant="primary" :busy="busy" :disabled="!newUrl.trim()" @click="add"
               >Добавить</SamsungButton
@@ -81,6 +87,31 @@
               <span class="text-[15px] text-wings-muted">Автообновление</span>
               <OneuiSwitch :model-value="sub.autoUpdate" @update:model-value="(v) => setAutoUpdate(sub.id, v)" />
             </label>
+            <div class="mt-3 border-t border-wings-divider pt-3">
+              <OneuiInput
+                :model-value="proxyDrafts[sub.id] ?? sub.proxyUrl ?? ''"
+                label="Local HTTP proxy"
+                placeholder="http://127.0.0.1:2080"
+                @update:model-value="(value) => (proxyDrafts[sub.id] = value)"
+              />
+              <div class="mt-2 flex items-center justify-between gap-3">
+                <p class="text-[12px] leading-relaxed text-wings-muted">
+                  Leave blank for normal fetch; enter a running proxy, such as Throne. Save the proxy, then refresh to
+                  use it.
+                </p>
+                <button
+                  type="button"
+                  class="shrink-0 rounded-full border border-wings-divider px-3 py-1.5 text-[12px] text-wings-text transition-colors hover:border-wings-accent hover:text-wings-accent"
+                  :disabled="
+                    savingProxy === sub.id || (proxyDrafts[sub.id] ?? sub.proxyUrl ?? '') === (sub.proxyUrl ?? '')
+                  "
+                  @click="setProxy(sub)"
+                >
+                  {{ savingProxy === sub.id ? 'Saving...' : 'Save' }}
+                </button>
+              </div>
+              <p v-if="proxyErrors[sub.id]" class="mt-2 text-sm text-wings-danger">{{ proxyErrors[sub.id] }}</p>
+            </div>
           </SamsungCard>
         </div>
       </div>
@@ -108,6 +139,10 @@ const subs = ref([]);
 const newTitle = ref('');
 const newUrl = ref('');
 const newMirrors = ref('');
+const newProxyUrl = ref('');
+const proxyDrafts = ref({});
+const proxyErrors = ref({});
+const savingProxy = ref('');
 const busy = ref(false);
 const refreshing = ref('');
 const error = ref('');
@@ -134,15 +169,19 @@ async function add() {
       .split(/[\s,]+/)
       .map((candidate) => candidate.trim())
       .filter(Boolean);
-    const res = await SubscriptionService.Add(newTitle.value.trim(), url, mirrors);
+    const res = await SubscriptionService.Add(newTitle.value.trim(), url, mirrors, newProxyUrl.value.trim());
     apply(res.subscriptions);
-    if (res.error) showToast('Подписка добавлена, но обновление не удалось', { type: 'warn' });
-    else showToast(`Добавлено узлов: ${res.updated}`, { type: 'success' });
-    newTitle.value = '';
-    newUrl.value = '';
-    newMirrors.value = '';
+    if (res.error) {
+      error.value = `Подписка сохранена, но узлы не загружены: ${safeError(res.error)}`;
+    } else {
+      showToast(`Добавлено узлов: ${res.updated}`, { type: 'success' });
+      newTitle.value = '';
+      newUrl.value = '';
+      newMirrors.value = '';
+      newProxyUrl.value = '';
+    }
   } catch (e) {
-    error.value = String(e?.message ?? e ?? 'Не удалось добавить подписку');
+    error.value = safeError(e?.message ?? e ?? 'Could not add subscription');
   } finally {
     busy.value = false;
   }
@@ -153,7 +192,7 @@ async function refresh(id) {
   try {
     const res = await SubscriptionService.Refresh(id);
     apply(res.subscriptions);
-    if (res.error) showToast('Не удалось обновить подписку', { type: 'warn' });
+    if (res.error) showToast(`Не удалось обновить подписку: ${safeError(res.error)}`, { type: 'warn', duration: 7000 });
     else showToast(`Обновлено узлов: ${res.updated}`, { type: 'success' });
   } finally {
     refreshing.value = '';
@@ -165,7 +204,8 @@ async function refreshAll() {
   try {
     const res = await SubscriptionService.RefreshAll();
     apply(res.subscriptions);
-    showToast(`Обновлено узлов: ${res.updated}`, { type: 'success' });
+    if (res.error) showToast(`Не все подписки обновлены: ${safeError(res.error)}`, { type: 'warn', duration: 7000 });
+    else showToast(`Обновлено узлов: ${res.updated}`, { type: 'success' });
   } finally {
     busy.value = false;
   }
@@ -173,6 +213,31 @@ async function refreshAll() {
 
 async function setAutoUpdate(id, on) {
   apply(await SubscriptionService.SetAutoUpdate(id, on));
+}
+
+function safeError(message) {
+  let text = String(message ?? 'Не удалось загрузить узлы');
+  for (const secret of [
+    newUrl.value,
+    newProxyUrl.value,
+    ...subs.value.map((sub) => sub.url),
+    ...subs.value.map((sub) => sub.proxyUrl),
+  ]) {
+    if (secret) text = text.split(secret).join('[hidden]');
+  }
+  return text;
+}
+
+async function setProxy(sub) {
+  savingProxy.value = sub.id;
+  proxyErrors.value[sub.id] = '';
+  try {
+    apply(await SubscriptionService.SetProxy(sub.id, (proxyDrafts.value[sub.id] ?? sub.proxyUrl ?? '').trim()));
+  } catch (e) {
+    proxyErrors.value[sub.id] = safeError(e?.message ?? e ?? 'Could not save proxy');
+  } finally {
+    savingProxy.value = '';
+  }
 }
 
 async function remove(sub) {
