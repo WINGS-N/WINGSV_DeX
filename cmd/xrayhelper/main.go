@@ -21,6 +21,7 @@ import (
 
 	"github.com/xtls/libxray/share"
 	"github.com/xtls/libxray/xray"
+	xraylog "github.com/xtls/xray-core/common/log"
 	"github.com/xtls/xray-core/common/platform"
 )
 
@@ -104,6 +105,8 @@ func cmdRun(argv []string) error {
 // cmdConvert reads share links (vless://..., v2rayN plain/base64, Clash.Meta yaml) from
 // stdin and writes the resulting xray config json to stdout.
 func cmdConvert() error {
+	// Xray logs to stdout by default; conversion reserves stdout for JSON.
+	xraylog.RegisterHandler(xraylog.NewLogger(xraylog.CreateStderrLogWriter()))
 	links, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return err
