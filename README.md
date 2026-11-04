@@ -62,6 +62,17 @@
 2. Получите ссылку-профиль `wingsv://` (её выдаёт тот, кто раздаёт вам доступ), скопируйте её и нажмите **«Вставить из буфера»**.
 3. Нажмите круглую кнопку - готово, вы подключены.
 
+## NixOS source checkout
+
+On x86_64-linux, clone the repository with its submodules and run from its root:
+
+```sh
+git submodule update --init --recursive
+nix run .
+```
+
+The first run builds the Wails CLI, the frontend, the application, and its three helper binaries. Go and pnpm dependencies are downloaded into user caches, so a network connection is needed on a fresh checkout. `nix develop` provides the same toolchain for manual development.
+
 ## Что используется
 
 - `Wails v3` - десктопная оболочка (Go + системный WebView)
