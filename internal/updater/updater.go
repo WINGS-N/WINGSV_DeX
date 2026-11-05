@@ -33,6 +33,7 @@ const (
 	KindWindowsSetup    Kind = "windows-setup"
 	KindWindowsPortable Kind = "windows-portable"
 	KindBinary          Kind = "binary" // a plain ELF/exe not owned by a package manager
+	KindNix             Kind = "nix"    // managed by the Nix store/package manager
 )
 
 // Install describes where and how this instance runs.
@@ -109,6 +110,9 @@ type ghRelease struct {
 func Check(current string) Result {
 	inst := Detect()
 	res := Result{Status: "uptodate", Current: current, Latest: current, Kind: inst.Kind, PageURL: ReleasesPage}
+	if inst.Kind == KindNix {
+		return res
+	}
 
 	rel, err := fetchLatest()
 	if err != nil {

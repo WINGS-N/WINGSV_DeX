@@ -20,6 +20,9 @@ var nftCandidates = []string{
 	"/bin/nft",
 }
 
+// nixNftPath is set by the Nix build so pkexec can find nft after sanitizing PATH.
+var nixNftPath string
+
 // VkturnCgroup is the dedicated cgroup v2 the vkturn process is moved into so all of
 // its egress can be fwmark-tagged wholesale. Per-socket SO_MARK (the protect bridge)
 // only covers sockets vkturn opens through its protect dialer and misses the ones
@@ -206,6 +209,11 @@ func runNftStdin(ruleset string) error {
 }
 
 func commandPath(candidates []string) (string, error) {
+	if nixNftPath != "" {
+		if st, err := os.Stat(nixNftPath); err == nil && !st.IsDir() {
+			return nixNftPath, nil
+		}
+	}
 	for _, candidate := range candidates {
 		if strings.Contains(candidate, "/") {
 			if st, err := os.Stat(candidate); err == nil && !st.IsDir() {

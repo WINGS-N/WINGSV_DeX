@@ -560,6 +560,14 @@ func (s *Store) AddSubscription(title, url string) (Subscription, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sub := Subscription{Title: strings.TrimSpace(title), URL: url, AutoUpdate: true}
+	for _, existing := range s.data.Subscriptions {
+		if strings.TrimSpace(existing.URL) == url {
+			sub = existing
+			sub.Title = strings.TrimSpace(title)
+			sub.URL = url
+			break
+		}
+	}
 	id := s.upsertSubscriptionLocked(sub)
 	if err := s.saveLocked(); err != nil {
 		return Subscription{}, err
@@ -600,6 +608,23 @@ func (s *Store) SetSubscriptionAutoUpdate(id string, on bool) error {
 	for i := range s.data.Subscriptions {
 		if s.data.Subscriptions[i].ID == id {
 			s.data.Subscriptions[i].AutoUpdate = on
+			return s.saveLocked()
+		}
+	}
+	return errors.New("unknown subscription")
+}
+
+// SetSubscriptionProxy updates a subscription's explicit proxy. Empty disables it.
+func (s *Store) SetSubscriptionProxy(id, rawURL string) error {
+	proxyURL, err := ValidateSubscriptionProxyURL(rawURL)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.data.Subscriptions {
+		if s.data.Subscriptions[i].ID == id {
+			s.data.Subscriptions[i].ProxyURL = proxyURL
 			return s.saveLocked()
 		}
 	}

@@ -46,7 +46,11 @@ func (s *SubscriptionService) List() []config.Subscription {
 
 // Add adds a subscription and immediately fetches it. mirrors - запасные адреса,
 // по которым обновление пойдёт, если основной перестал отвечать.
-func (s *SubscriptionService) Add(title, url string, mirrors []string) (SubscriptionRefresh, error) {
+func (s *SubscriptionService) Add(title, url string, mirrors []string, proxyURL string) (SubscriptionRefresh, error) {
+	validatedProxyURL, err := config.ValidateSubscriptionProxyURL(proxyURL)
+	if err != nil {
+		return SubscriptionRefresh{}, err
+	}
 	sub, err := s.store.AddSubscription(title, url)
 	if err != nil {
 		return SubscriptionRefresh{}, err
@@ -58,12 +62,29 @@ func (s *SubscriptionService) Add(title, url string, mirrors []string) (Subscrip
 		}
 		sub = updated
 	}
+	if err := s.store.SetSubscriptionProxy(sub.ID, validatedProxyURL); err != nil {
+		return SubscriptionRefresh{}, err
+	}
+	for _, configured := range s.store.SubscriptionList() {
+		if configured.ID == sub.ID {
+			sub = configured
+			break
+		}
+	}
 	n, ferr := s.refresh(sub)
 	res := SubscriptionRefresh{Subscriptions: s.store.SubscriptionList(), Updated: n}
 	if ferr != nil {
 		res.Error = ferr.Error()
 	}
 	return res, nil
+}
+
+// SetProxy edits the explicit HTTP proxy for an existing subscription.
+func (s *SubscriptionService) SetProxy(id, proxyURL string) ([]config.Subscription, error) {
+	if err := s.store.SetSubscriptionProxy(id, proxyURL); err != nil {
+		return nil, err
+	}
+	return s.store.SubscriptionList(), nil
 }
 
 // Remove deletes a subscription and its nodes.
