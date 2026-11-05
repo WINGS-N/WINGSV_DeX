@@ -9,9 +9,11 @@ package nethelper
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"os/user"
 	"strconv"
 
 	"github.com/WINGS-N/wingsv-dex/internal/wg"
@@ -50,11 +52,53 @@ type reply struct {
 // on stop or when stdin closes (i.e. the main app exited). This is the entry point
 // for the `--net-helper` mode of the binary.
 func Run() error {
+	return RunIO(os.Stdin, os.Stdout)
+}
+
+// RunIO serves helper commands over the supplied streams.
+func RunIO(input io.Reader, output io.Writer) error {
+	return runIO(input, output, nil)
+}
+
+// RunForUID serves commands while launching user-configurable children as allowedUID.
+func RunForUID(input io.Reader, output io.Writer, allowedUID uint32) error {
+	if allowedUID == 0 {
+		return fmt.Errorf("refusing root child UID")
+	}
+	u, err := user.LookupId(strconv.FormatUint(uint64(allowedUID), 10))
+	if err != nil {
+		return err
+	}
+	uid, err := strconv.ParseUint(u.Uid, 10, 32)
+	if err != nil {
+		return err
+	}
+	gid, err := strconv.ParseUint(u.Gid, 10, 32)
+	if err != nil {
+		return err
+	}
+	groupStrings, err := u.GroupIds()
+	if err != nil {
+		return err
+	}
+	groups := make([]uint32, 0, len(groupStrings))
+	for _, group := range groupStrings {
+		v, err := strconv.ParseUint(group, 10, 32)
+		if err != nil {
+			return err
+		}
+		groups = append(groups, uint32(v))
+	}
+	cred := &childCredential{Uid: uint32(uid), Gid: uint32(gid), Groups: groups}
+	return runIO(input, output, cred)
+}
+
+func runIO(input io.Reader, output io.Writer, childCredential *childCredential) error {
 	log.SetPrefix("net-helper: ")
 	log.SetFlags(log.Ltime)
 	log.Printf("started (uid=%d)", os.Getuid())
-	dec := json.NewDecoder(os.Stdin)
-	enc := json.NewEncoder(os.Stdout)
+	dec := json.NewDecoder(input)
+	enc := json.NewEncoder(output)
 
 	var protect *wg.ProtectServer
 	var cmark *wg.CgroupMark
@@ -115,9 +159,21 @@ func Run() error {
 			}
 			return nil
 		}
+		if childCredential != nil {
+			if err := validateDaemonCommand(cmd, protect != nil, active, childCredential.Uid); err != nil {
+				_ = enc.Encode(reply{Error: err.Error()})
+				continue
+			}
+		}
 		switch cmd.Cmd {
 		case "start":
-			p, err := wg.ListenProtect(cmd.ProtectSocket, cmd.FwMark)
+			var p *wg.ProtectServer
+			var err error
+			if childCredential != nil {
+				p, err = wg.ListenProtectForUID(cmd.ProtectSocket, cmd.FwMark, childCredential.Uid)
+			} else {
+				p, err = wg.ListenProtect(cmd.ProtectSocket, cmd.FwMark)
+			}
 			if err != nil {
 				log.Printf("protect listen @%s failed: %v", cmd.ProtectSocket, err)
 				_ = enc.Encode(reply{Error: err.Error()})
@@ -195,7 +251,11 @@ func Run() error {
 				continue
 			}
 			appsCg = ac
-			matcher = wg.StartAppMatcher(ac, cmd.Apps)
+			if childCredential != nil {
+				matcher = wg.StartAppMatcherForUID(ac, cmd.Apps, childCredential.Uid)
+			} else {
+				matcher = wg.StartAppMatcher(ac, cmd.Apps)
+			}
 			// Whitelist: also tunnel the app itself so its exit-IP lookup reflects the
 			// tunnel (in whitelist the unmarked default is the physical link).
 			if cmd.Whitelist && cmd.SelfPid > 0 {
@@ -217,7 +277,8 @@ func Run() error {
 			appsDown()
 			_ = enc.Encode(reply{OK: true})
 		case "xrayup":
-			if err := validateBundledBinary(cmd.XrayBin, "xray"); err != nil {
+			xrayBin, err := validateBundledBinary(cmd.XrayBin, "xray")
+			if err != nil {
 				_ = enc.Encode(reply{Error: err.Error()})
 				continue
 			}
@@ -225,7 +286,7 @@ func Run() error {
 				xray.stop()
 				xray = nil
 			}
-			x, err := startXray(cmd.XrayBin, cmd.XrayConfig, cmd.TunName, cmd.DatDir, cmd.EnableIPv6)
+			x, err := startXray(xrayBin, cmd.XrayConfig, cmd.TunName, cmd.DatDir, cmd.EnableIPv6, childCredential)
 			if err != nil {
 				log.Printf("xrayup failed: %v", err)
 				_ = enc.Encode(reply{Error: err.Error()})
@@ -241,7 +302,12 @@ func Run() error {
 			}
 			_ = enc.Encode(reply{OK: true})
 		case "byedpiup":
-			if err := validateBundledBinary(cmd.ByeDPIBin, "byedpi"); err != nil {
+			if err := validateByeDPIRoute(fwmark, physical); err != nil {
+				_ = enc.Encode(reply{Error: err.Error()})
+				continue
+			}
+			byedpiBin, err := validateBundledBinary(cmd.ByeDPIBin, "byedpi")
+			if err != nil {
 				_ = enc.Encode(reply{Error: err.Error()})
 				continue
 			}
@@ -270,7 +336,7 @@ func Run() error {
 				bypass = bp
 				args = append(append([]string{}, args...), "--fwmark", strconv.Itoa(fwmark))
 			}
-			b, err := startByeDPI(cmd.ByeDPIBin, args)
+			b, err := startByeDPI(byedpiBin, args, childCredential)
 			if err != nil {
 				log.Printf("byedpiup failed: %v", err)
 				_ = enc.Encode(reply{Error: err.Error()})

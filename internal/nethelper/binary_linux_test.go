@@ -15,20 +15,30 @@ func TestValidateSiblingBinary(t *testing.T) {
 	if err := os.WriteFile(self, nil, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	sibling := filepath.Join(dir, "xray")
-	if err := os.WriteFile(sibling, nil, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := validateSiblingBinary(self, sibling, "xray"); err != nil {
-		t.Fatalf("accept sibling: %v", err)
-	}
-	for _, injected := range []string{"/bin/sh", filepath.Join(dir, "other")} {
-		err := validateSiblingBinary(self, injected, "xray")
-		if err == nil || !strings.Contains(err.Error(), "refusing xray binary") {
-			t.Errorf("%q: expected explicit rejection, got %v", injected, err)
-		}
-	}
-	if err := validateSiblingBinary(self, "xray", "xray"); err == nil {
-		t.Error("accepted relative path")
+	for _, name := range []string{"xray", "byedpi"} {
+		t.Run(name, func(t *testing.T) {
+			canonical := filepath.Join(dir, name)
+			if err := os.WriteFile(canonical, nil, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			alias := filepath.Join(dir, name+"-alias")
+			if err := os.Symlink(canonical, alias); err != nil {
+				t.Fatal(err)
+			}
+			got, err := validateSiblingBinary(self, alias, name)
+			if err != nil || got != canonical {
+				t.Fatalf("resolve alias: got %q, err %v; want %q", got, err, canonical)
+			}
+			outside := filepath.Join(t.TempDir(), name)
+			if err := os.WriteFile(outside, nil, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			for _, injected := range []string{outside, "relative", ""} {
+				got, err := validateSiblingBinary(self, injected, name)
+				if err == nil || got != "" || !strings.Contains(err.Error(), "refusing "+name+" binary") {
+					t.Errorf("%q: expected explicit rejection, got path %q, err %v", injected, got, err)
+				}
+			}
+		})
 	}
 }

@@ -17,6 +17,12 @@ type xrayRunWrapper struct {
 	ConfigPath  string `json:"configPath,omitempty"`
 }
 
+type childCredential struct {
+	Uid    uint32
+	Gid    uint32
+	Groups []uint32
+}
+
 // xrayChild is a running bin/xray process plus its scratch dir.
 type xrayChild struct {
 	cmd *exec.Cmd
@@ -24,17 +30,17 @@ type xrayChild struct {
 }
 
 // startXray writes the xray config and run wrapper to a private scratch dir and spawns
-// bin/xray run. The child inherits the helper's privileges (it must create the TUN and set
-// routes). Its stdout/stderr go to the helper's stderr; stdout here is the JSON reply
-// channel and must not be polluted.
-func startXray(xrayBin, configJSON, tunName, datDir string, enableIPv6 bool) (*xrayChild, error) {
+// bin/xray run. Legacy mode inherits the helper's privileges; daemon mode runs with the
+// requested child credential and network capability. Its stdout/stderr go to the helper's
+// stderr; stdout here is the JSON reply channel and must not be polluted.
+func startXray(xrayBin, configJSON, tunName, datDir string, enableIPv6 bool, credential *childCredential) (*xrayChild, error) {
 	dir, err := os.MkdirTemp("", "wingsv-xray-")
 	if err != nil {
 		return nil, err
 	}
 	cfgPath := filepath.Join(dir, "config.json")
 	if err := os.WriteFile(cfgPath, []byte(configJSON), 0o600); err != nil {
-		os.RemoveAll(dir)
+		removeXrayScratch(dir)
 		return nil, err
 	}
 	wrapper := xrayRunWrapper{
@@ -46,20 +52,39 @@ func startXray(xrayBin, configJSON, tunName, datDir string, enableIPv6 bool) (*x
 	}
 	wb, err := json.Marshal(&wrapper)
 	if err != nil {
-		os.RemoveAll(dir)
+		removeXrayScratch(dir)
 		return nil, err
 	}
 	runPath := filepath.Join(dir, "run.json")
 	if err := os.WriteFile(runPath, wb, 0o600); err != nil {
-		os.RemoveAll(dir)
+		removeXrayScratch(dir)
 		return nil, err
 	}
 	cmd := exec.Command(xrayBin, "run", "-config", runPath)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	setXrayPdeathsig(cmd)
+	setChildCredential(cmd, credential)
+	if credential != nil {
+		if err := os.Chown(cfgPath, int(credential.Uid), int(credential.Gid)); err != nil {
+			removeXrayScratch(dir)
+			return nil, err
+		}
+		if err := os.Chown(runPath, int(credential.Uid), int(credential.Gid)); err != nil {
+			removeXrayScratch(dir)
+			return nil, err
+		}
+		if err := os.Chown(dir, int(credential.Uid), int(credential.Gid)); err != nil {
+			removeXrayScratch(dir)
+			return nil, err
+		}
+		if err := os.Chmod(dir, 0o700); err != nil {
+			removeXrayScratch(dir)
+			return nil, err
+		}
+	}
 	if err := cmd.Start(); err != nil {
-		os.RemoveAll(dir)
+		removeXrayScratch(dir)
 		return nil, err
 	}
 	return &xrayChild{cmd: cmd, dir: dir}, nil
@@ -76,6 +101,13 @@ func (x *xrayChild) stop() {
 		_ = x.cmd.Wait()
 	}
 	if x.dir != "" {
-		_ = os.RemoveAll(x.dir)
+		_ = removeXrayScratch(x.dir)
 	}
+}
+
+func removeXrayScratch(dir string) error {
+	for _, name := range []string{"config.json", "run.json"} {
+		_ = os.Remove(filepath.Join(dir, name))
+	}
+	return os.Remove(dir)
 }

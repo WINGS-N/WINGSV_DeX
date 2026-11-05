@@ -3,7 +3,7 @@
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-  outputs = { nixpkgs, ... }:
+  outputs = { self, nixpkgs, ... }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
@@ -76,5 +76,11 @@
           export GOFLAGS="-buildvcs=false"
         '';
       };
+
+      checks.${system}.nethelper = pkgs.testers.runNixOSTest (import ./nix/tests/nethelper.nix {
+        inherit nixpkgs;
+        inherit package;
+        module = self.nixosModules.default;
+      });
     };
 }

@@ -12,11 +12,12 @@ type byedpiChild struct {
 
 // startByeDPI spawns ciadpi. The caller (Linux) then moves it into the bypass cgroup so
 // its upstream egress skips the tunnel. Output goes to the helper's stderr.
-func startByeDPI(bin string, args []string) (*byedpiChild, error) {
+func startByeDPI(bin string, args []string, credential *childCredential) (*byedpiChild, error) {
 	cmd := exec.Command(bin, args...)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	setXrayPdeathsig(cmd)
+	setChildCredential(cmd, credential)
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}

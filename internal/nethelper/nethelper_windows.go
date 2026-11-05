@@ -197,7 +197,7 @@ func Run() error {
 				xray.stop()
 				xray = nil
 			}
-			x, err := startXray(cmd.XrayBin, cmd.XrayConfig, cmd.TunName, cmd.DatDir, cmd.EnableIPv6)
+			x, err := startXray(cmd.XrayBin, cmd.XrayConfig, cmd.TunName, cmd.DatDir, cmd.EnableIPv6, nil)
 			if err != nil {
 				log.Printf("xrayup failed: %v", err)
 				_ = enc.Encode(reply{Error: err.Error()})
@@ -224,7 +224,7 @@ func Run() error {
 			// byedpiup runs before xrayup, so the physical default gateway is still resolvable:
 			// /32-route the front's upstream server IPs off the tunnel it fronts.
 			byedpiBypassCleanup = wgwin.AddPhysicalBypassRoutes(cmd.ByeDPIBypassIPs)
-			b, err := startByeDPI(cmd.ByeDPIBin, cmd.ByeDPIArgs)
+			b, err := startByeDPI(cmd.ByeDPIBin, cmd.ByeDPIArgs, nil)
 			if err != nil {
 				log.Printf("byedpiup failed: %v", err)
 				_ = enc.Encode(reply{Error: err.Error()})

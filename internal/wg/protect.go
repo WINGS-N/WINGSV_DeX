@@ -17,14 +17,25 @@ import (
 // the tunnel (the Linux equivalent of Android's VpnService.protect). Runs privileged
 // (SO_MARK needs CAP_NET_ADMIN).
 type ProtectServer struct {
-	ln     *net.UnixListener
-	fwmark int
-	marked atomic.Int64
+	ln         *net.UnixListener
+	fwmark     int
+	allowedUID *uint32
+	marked     atomic.Int64
 }
 
 // ListenProtect starts the protect server on the given abstract socket name (a "@"
 // prefix is added if absent, matching vkturn's client side).
 func ListenProtect(abstractName string, fwmark int) (*ProtectServer, error) {
+	return listenProtect(abstractName, fwmark, nil)
+}
+
+// ListenProtectForUID starts a protect server that accepts connections only from
+// the specified Unix peer UID.
+func ListenProtectForUID(abstractName string, fwmark int, allowedUID uint32) (*ProtectServer, error) {
+	return listenProtect(abstractName, fwmark, &allowedUID)
+}
+
+func listenProtect(abstractName string, fwmark int, allowedUID *uint32) (*ProtectServer, error) {
 	name := strings.TrimSpace(abstractName)
 	if !strings.HasPrefix(name, "@") {
 		name = "@" + name
@@ -33,7 +44,7 @@ func ListenProtect(abstractName string, fwmark int) (*ProtectServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &ProtectServer{ln: ln, fwmark: fwmark}
+	s := &ProtectServer{ln: ln, fwmark: fwmark, allowedUID: allowedUID}
 	go s.acceptLoop()
 	return s, nil
 }
@@ -44,9 +55,34 @@ func (s *ProtectServer) acceptLoop() {
 		if err != nil {
 			return
 		}
+		if s.allowedUID != nil {
+			uid, err := peerUID(conn)
+			if err != nil || uid != *s.allowedUID {
+				_ = conn.Close()
+				continue
+			}
+		}
 		log.Printf("net-helper: protect: vkturn connected")
 		go s.handle(conn)
 	}
+}
+
+func peerUID(conn *net.UnixConn) (uint32, error) {
+	raw, err := conn.SyscallConn()
+	if err != nil {
+		return 0, err
+	}
+	var cred *unix.Ucred
+	var sockErr error
+	if err := raw.Control(func(fd uintptr) {
+		cred, sockErr = unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
+	}); err != nil {
+		return 0, err
+	}
+	if sockErr != nil {
+		return 0, sockErr
+	}
+	return cred.Uid, nil
 }
 
 func (s *ProtectServer) handle(conn *net.UnixConn) {

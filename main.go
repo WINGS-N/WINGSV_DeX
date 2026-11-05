@@ -32,6 +32,12 @@ var assets embed.FS
 func main() {
 	// Privileged data-plane mode: re-launched via pkexec to run the kernel
 	// WireGuard + protect socket under CAP_NET_ADMIN. Handled before any GUI setup.
+	if len(os.Args) > 1 && os.Args[1] == "--net-helper-server" {
+		if err := runNetHelperServer(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "--net-helper" {
 		if err := nethelper.Run(); err != nil {
 			log.Fatal(err)
