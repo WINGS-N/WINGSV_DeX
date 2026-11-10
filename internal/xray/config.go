@@ -32,6 +32,13 @@ type Options struct {
 	// RoutingRules - пользовательские правила маршрутизации. Встают перед общим
 	// правилом, потому что Xray берёт первое совпавшее
 	RoutingRules []config.XrayRoutingRule
+	// StatsAPIListen, when non-empty, is the xray commander listen address for the
+	// StatsService (a unix socket path with a ",0600" suffix off Windows, or "127.0.0.1:port"
+	// on Windows where AF_UNIX gRPC is unreliable). It turns on the proxy-outbound traffic
+	// counters. The federation receipt engine reads the exact per-direction byte totals from
+	// it; the interface counters cannot be used for receipts because they also carry local
+	// DNS, keepalive and tunnel overhead, and the two sides would never agree.
+	StatsAPIListen string
 }
 
 // ProbeConfig builds a minimal proxy-only config for a single node: a no-auth SOCKS inbound
@@ -70,6 +77,24 @@ func Build(opts Options) (string, error) {
 		"inbounds":  buildInbounds(opts),
 		"outbounds": buildOutbounds(proxy, opts),
 		"routing":   buildRouting(opts.Settings, opts.RoutingRules),
+	}
+	if opts.StatsAPIListen != "" {
+		// A non-empty api listen makes the commander bind the socket itself instead of
+		// registering an outbound handler, so no api inbound and no routing rule to it are
+		// needed. On a unix socket the ",0600" suffix tells xray's listener to chmod it after
+		// bind, so the socket's own ownership and mode are the access control - the commander
+		// authenticates nothing. The proxy outbound is tagged "proxy", so the counters land
+		// under outbound>>>proxy>>>traffic>>>uplink/downlink, which the stats client reads.
+		cfg["stats"] = map[string]any{}
+		cfg["api"] = map[string]any{
+			"tag":      "api",
+			"listen":   opts.StatsAPIListen,
+			"services": []string{"StatsService"},
+		}
+		cfg["policy"] = map[string]any{"system": map[string]any{
+			"statsOutboundUplink":   true,
+			"statsOutboundDownlink": true,
+		}}
 	}
 	raw, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {

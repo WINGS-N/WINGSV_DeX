@@ -53,3 +53,20 @@ protoc \
   --go-grpc_opt=module="$MODULE" \
   --go-grpc_opt=Mappcontrol.proto="$MODULE/internal/gen/appcontrolpb" \
   "$VKTP_PROTO_DIR/appcontrol.proto"
+
+# statscommandpb - xray's StatsService (messages + gRPC) so the federation receipt engine can
+# read xray's own exact per-direction byte counters. command.proto is self-contained (no
+# imports) and read straight from the Xray-core submodule; the M override remaps its upstream
+# go_package into this module.
+XRAY_STATS_PROTO_DIR="$ROOT_DIR/external/Xray-core/app/stats/command"
+mkdir -p "$OUT_DIR/statscommandpb"
+rm -f "$OUT_DIR/statscommandpb"/*.pb.go
+protoc \
+  --proto_path="$XRAY_STATS_PROTO_DIR" \
+  --go_out="$ROOT_DIR" \
+  --go_opt=module="$MODULE" \
+  --go_opt=Mcommand.proto="$MODULE/internal/gen/statscommandpb" \
+  --go-grpc_out="$ROOT_DIR" \
+  --go-grpc_opt=module="$MODULE" \
+  --go-grpc_opt=Mcommand.proto="$MODULE/internal/gen/statscommandpb" \
+  "$XRAY_STATS_PROTO_DIR/command.proto"
