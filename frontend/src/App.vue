@@ -9,6 +9,8 @@
     <AutoSearchView v-else-if="overlay === 'autosearch'" />
     <LogsView v-else-if="overlay === 'logs'" />
     <AboutView v-else-if="overlay === 'about'" />
+    <AccountView v-else-if="overlay === 'account'" />
+    <AccountProfileView v-else-if="overlay === 'account-profile'" />
 
     <template v-else>
       <main class="min-h-0 flex-1 overflow-y-auto">
@@ -60,6 +62,8 @@ import ByeDpiSettingsView from '@/views/ByeDpiSettingsView.vue';
 import ByeDpiStrategyView from '@/views/ByeDpiStrategyView.vue';
 import AutoSearchView from '@/views/AutoSearchView.vue';
 import AboutView from '@/views/AboutView.vue';
+import AccountView from '@/views/AccountView.vue';
+import AccountProfileView from '@/views/AccountProfileView.vue';
 import ConfirmDialog from '@/components/layout/ConfirmDialog.vue';
 import ToastHost from '@/components/layout/ToastHost.vue';
 import FirstLaunchView from '@/views/firstlaunch/FirstLaunchView.vue';
