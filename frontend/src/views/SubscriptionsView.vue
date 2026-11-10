@@ -88,7 +88,10 @@
                   <SamsungSpinner v-if="refreshing === sub.id" />
                   <RefreshCw v-else :size="18" />
                 </button>
+                <!-- The account subscription is owned by WINGS Account: it is removed only by
+                     signing out, never by hand. -->
                 <button
+                  v-if="sub.id !== FEDERATION_SUBSCRIPTION_ID"
                   type="button"
                   aria-label="Удалить"
                   class="p-1 text-wings-muted hover:text-wings-danger"
@@ -145,6 +148,7 @@ import SamsungSpinner from '@/components/layout/SamsungSpinner.vue';
 import OneuiInput from '@/components/controls/OneuiInput.vue';
 import OneuiSwitch from '@/components/controls/OneuiSwitch.vue';
 import { closeOverlay, openOverlay } from '@/stores/nav.js';
+import { FEDERATION_SUBSCRIPTION_ID } from '@/lib/federation.js';
 import { showToast } from '@/stores/toast.js';
 import { usePinnedScroll } from '@/composables/usePinnedScroll.js';
 

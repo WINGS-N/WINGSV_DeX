@@ -128,6 +128,11 @@ func (s *SubscriptionService) SetProxy(id, proxyURL string) ([]config.Subscripti
 
 // Remove deletes a subscription and its nodes.
 func (s *SubscriptionService) Remove(id string) ([]config.Subscription, error) {
+	// The account subscription is owned by WINGS Account: it is removed only when the user
+	// signs out (AccountService.Logout -> RemoveFederationSubscription), never by hand here.
+	if id == config.FederationSubscriptionID {
+		return s.store.SubscriptionList(), nil
+	}
 	if err := s.store.RemoveSubscription(id); err != nil {
 		return nil, err
 	}
