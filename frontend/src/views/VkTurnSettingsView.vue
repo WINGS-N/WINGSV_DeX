@@ -237,7 +237,7 @@
             <div class="py-3">
               <OneuiInput
                 v-model="form.wg.jc"
-                label="Jc — junk-пакетов"
+                label="Jc &mdash; junk-пакетов"
                 type="number"
                 inputmode="numeric"
                 :disabled="isManaged"
@@ -246,7 +246,7 @@
             <div class="py-3">
               <OneuiInput
                 v-model="form.wg.jmin"
-                label="Jmin — мин. размер junk"
+                label="Jmin &mdash; мин. размер junk"
                 type="number"
                 inputmode="numeric"
                 :disabled="isManaged"
@@ -255,7 +255,7 @@
             <div class="py-3">
               <OneuiInput
                 v-model="form.wg.jmax"
-                label="Jmax — макс. размер junk"
+                label="Jmax &mdash; макс. размер junk"
                 type="number"
                 inputmode="numeric"
                 :disabled="isManaged"
@@ -264,7 +264,7 @@
             <div class="py-3">
               <OneuiInput
                 v-model="form.wg.s1"
-                label="S1 — junk в init"
+                label="S1 &mdash; junk в init"
                 type="number"
                 inputmode="numeric"
                 :disabled="isManaged"
@@ -273,7 +273,7 @@
             <div class="py-3">
               <OneuiInput
                 v-model="form.wg.s2"
-                label="S2 — junk в response"
+                label="S2 &mdash; junk в response"
                 type="number"
                 inputmode="numeric"
                 :disabled="isManaged"
@@ -282,7 +282,7 @@
             <div class="py-3">
               <OneuiInput
                 v-model="form.wg.s3"
-                label="S3 — junk в cookie"
+                label="S3 &mdash; junk в cookie"
                 type="number"
                 inputmode="numeric"
                 :disabled="isManaged"
@@ -291,21 +291,56 @@
             <div class="py-3">
               <OneuiInput
                 v-model="form.wg.s4"
-                label="S4 — junk в transport"
+                label="S4 &mdash; junk в transport"
                 type="number"
                 inputmode="numeric"
                 :disabled="isManaged"
               />
             </div>
-            <div class="py-3"><OneuiInput v-model="form.wg.h1" label="H1 — magic init" :disabled="isManaged" /></div>
             <div class="py-3">
-              <OneuiInput v-model="form.wg.h2" label="H2 — magic response" :disabled="isManaged" />
+              <OneuiInput v-model="form.wg.h1" label="H1 &mdash; magic init" :disabled="isManaged" />
             </div>
             <div class="py-3">
-              <OneuiInput v-model="form.wg.h3" label="H3 — magic underload" :disabled="isManaged" />
+              <OneuiInput v-model="form.wg.h2" label="H2 &mdash; magic response" :disabled="isManaged" />
             </div>
             <div class="py-3">
-              <OneuiInput v-model="form.wg.h4" label="H4 — magic transport" :disabled="isManaged" />
+              <OneuiInput v-model="form.wg.h3" label="H3 &mdash; magic underload" :disabled="isManaged" />
+            </div>
+            <div class="py-3">
+              <OneuiInput v-model="form.wg.h4" label="H4 &mdash; magic transport" :disabled="isManaged" />
+            </div>
+            <div class="py-3">
+              <OneuiInput v-model="form.wg.i1" label="I1 &mdash; special junk 1" :disabled="isManaged" />
+            </div>
+            <div class="py-3">
+              <OneuiInput v-model="form.wg.i2" label="I2 &mdash; special junk 2" :disabled="isManaged" />
+            </div>
+            <div class="py-3">
+              <OneuiInput v-model="form.wg.i3" label="I3 &mdash; special junk 3" :disabled="isManaged" />
+            </div>
+            <div class="py-3">
+              <OneuiInput v-model="form.wg.i4" label="I4 &mdash; special junk 4" :disabled="isManaged" />
+            </div>
+            <div class="py-3">
+              <OneuiInput v-model="form.wg.i5" label="I5 &mdash; special junk 5" :disabled="isManaged" />
+            </div>
+            <div class="py-3">
+              <OneuiInput
+                v-model="form.wg.headerProtectionKey"
+                label="Header protection key"
+                :spellcheck="false"
+                :disabled="isManaged"
+              />
+            </div>
+            <div class="py-3">
+              <OneuiInput
+                v-model="form.wg.contentPaddingAddition"
+                label="Content padding addition"
+                :disabled="isManaged"
+              />
+            </div>
+            <div class="py-3">
+              <OneuiInput v-model="form.wg.rekeyAfterTime" label="Rekey after time" :disabled="isManaged" />
             </div>
             <div :class="sectionLabel">Пир</div>
             <div class="py-3">

@@ -20,6 +20,14 @@ const IFACE_KEYS = {
   h2: 'h2',
   h3: 'h3',
   h4: 'h4',
+  i1: 'i1',
+  i2: 'i2',
+  i3: 'i3',
+  i4: 'i4',
+  i5: 'i5',
+  headerprotectionkey: 'headerProtectionKey',
+  contentpaddingaddition: 'contentPaddingAddition',
+  rekeyaftertime: 'rekeyAfterTime',
 };
 const PEER_KEYS = {
   publickey: 'publicKey',
@@ -71,6 +79,14 @@ export function buildAwgQuick(wg) {
     line('H2', w.h2),
     line('H3', w.h3),
     line('H4', w.h4),
+    line('I1', w.i1),
+    line('I2', w.i2),
+    line('I3', w.i3),
+    line('I4', w.i4),
+    line('I5', w.i5),
+    line('HeaderProtectionKey', w.headerProtectionKey),
+    line('ContentPaddingAddition', w.contentPaddingAddition),
+    line('RekeyAfterTime', w.rekeyAfterTime),
   ].filter(Boolean);
   const peer = [
     '[Peer]',
