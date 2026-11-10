@@ -9,7 +9,7 @@
         aria-label="WINGS Account"
         @click="openOverlay('account')"
       >
-        <img v-if="avatarUrl" :src="avatarUrl" alt="" class="h-full w-full object-cover" />
+        <img v-if="avatarUrl" :src="sizedAvatar(avatarUrl, 36)" alt="" class="h-full w-full object-cover" />
         <UserRound v-else :size="20" />
       </button>
     </div>
@@ -22,6 +22,7 @@ import { UserRound } from '@lucide/vue';
 import { Events } from '@wailsio/runtime';
 import { AccountService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import { openOverlay } from '@/stores/nav.js';
+import { sizedAvatar } from '@/lib/avatar.js';
 
 const avatarUrl = ref('');
 let off = null;

@@ -33,7 +33,12 @@
         <div class="flex items-center justify-between">
           <span class="font-sharp text-[34px] font-bold lowercase text-white">{{ status.username }}</span>
           <button type="button" class="shrink-0" aria-label="Аватар" @click="openOverlay('account-avatar')">
-            <img v-if="status.avatarUrl" :src="status.avatarUrl" alt="" class="h-16 w-16 rounded-full object-cover" />
+            <img
+              v-if="status.avatarUrl"
+              :src="sizedAvatar(status.avatarUrl, 64)"
+              alt=""
+              class="h-16 w-16 rounded-full object-cover"
+            />
             <span v-else class="flex h-16 w-16 items-center justify-center rounded-full bg-wings-surface">
               <UserRound :size="28" class="text-wings-mutedStrong" />
             </span>
@@ -140,6 +145,7 @@ import OneuiInput from '@/components/controls/OneuiInput.vue';
 import AccountRow from '@/components/account/AccountRow.vue';
 import { closeOverlay, openOverlay } from '@/stores/nav.js';
 import { showToast } from '@/stores/toast.js';
+import { sizedAvatar } from '@/lib/avatar.js';
 import { usePinnedScroll } from '@/composables/usePinnedScroll.js';
 
 const rootEl = usePinnedScroll();
