@@ -173,8 +173,10 @@ function fmtBytes(n) {
   }
   return `${v.toFixed(i > 0 && v < 100 ? 1 : 0)} ${u[i]}`;
 }
+// Speed is the byte count formatted the same 1024 way as the totals, with a /s suffix - the
+// app does exactly this, so the figures line up instead of drifting apart on a decimal MB.
 function fmtSpeed(bps) {
-  return `${(bps / 1e6).toFixed(1)} MB/s`;
+  return `${fmtBytes(bps)}/s`;
 }
 
 async function refresh() {
