@@ -15,8 +15,8 @@ int main(int argc, char * argv[]) {
         // device, so the app delegate's didFinishLaunchingWithOptions never fires
         // (blank cold launch / 0x8BADF00D). Instead, the WailsAppDelegate (provided
         // by the Go archive) starts the Go runtime itself from
-        // didFinishLaunchingWithOptions — i.e. only AFTER UIKit has delivered the
-        // launch — so the runtime never races the launch handshake.
+        // didFinishLaunchingWithOptions - i.e. only AFTER UIKit has delivered the
+        // launch - so the runtime never races the launch handshake.
         return UIApplicationMain(argc, argv, nil, @"WailsAppDelegate");
     }
 }

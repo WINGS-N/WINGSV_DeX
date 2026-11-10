@@ -155,7 +155,7 @@ func checkCommand(name string, args ...string) bool {
 }
 
 // offerCreateAVD mirrors the iOS installer's simulator offer: when no AVD
-// exists, offer to create one — but ONLY from a system image that is already
+// exists, offer to create one - but ONLY from a system image that is already
 // installed. We never run sdkmanager here (a multi-GB download with a license
 // prompt is a surprise the user should trigger themselves).
 func offerCreateAVD(androidHome string) {

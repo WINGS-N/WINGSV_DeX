@@ -34,7 +34,7 @@ tasks:
       OUTPUT: '{{ .OUTPUT | default .DEFAULT_OUTPUT }}'
       # Determine target architecture (defaults to host ARCH if not specified)
       TARGET_ARCH: '{{.ARCH | default ARCH}}'
-      # Check if a C compiler is available (gcc or clang) — cross-platform via wails3 tool
+      # Check if a C compiler is available (gcc or clang) - cross-platform via wails3 tool
       HAS_CC:
         sh: 'wails3 tool has "gcc|clang"'
 
