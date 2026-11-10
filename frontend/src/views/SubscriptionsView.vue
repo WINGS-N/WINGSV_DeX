@@ -220,8 +220,10 @@ function safeError(message) {
   for (const secret of [
     newUrl.value,
     newProxyUrl.value,
+    ...newMirrors.value.split(/[\s,]+/).filter(Boolean),
     ...subs.value.map((sub) => sub.url),
     ...subs.value.map((sub) => sub.proxyUrl),
+    ...subs.value.flatMap((sub) => sub.mirrorUrls ?? []),
   ]) {
     if (secret) text = text.split(secret).join('[hidden]');
   }
