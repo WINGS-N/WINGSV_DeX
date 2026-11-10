@@ -15,6 +15,7 @@ import (
 	"github.com/WINGS-N/wingsv-dex/internal/applog"
 	"github.com/WINGS-N/wingsv-dex/internal/config"
 	"github.com/WINGS-N/wingsv-dex/internal/deeplink"
+	"github.com/WINGS-N/wingsv-dex/internal/federation"
 	"github.com/WINGS-N/wingsv-dex/internal/geoassets"
 	"github.com/WINGS-N/wingsv-dex/internal/nethelper"
 	"github.com/WINGS-N/wingsv-dex/internal/services"
@@ -80,7 +81,19 @@ func main() {
 	proxyLogWriter := applog.NewLineWriter(logStore, applog.ChannelProxy, os.Stderr)
 	manager := vktp.NewManager(vkturnBinaryPath(), appControlAddr(configDir), services.ProtectSocket, proxyLogWriter)
 	vkAuthSvc := services.NewVKAuthService(manager, store, configDir)
-	connectionSvc := services.NewConnectionService(store, logStore, manager, vkAuthSvc, exePath)
+
+	// Federation usage receipts: the engine signs them with a per-device key and delivers them
+	// to the panel, falling back to the node door when the panel is unreachable. The account
+	// service registers the current-account provider; the connection service feeds it the exact
+	// traffic counters from the data plane. Built before both so each takes it as a constructor
+	// argument (keeping it off the Wails binding surface).
+	receiptEngine := federation.NewReceiptEngine(
+		filepath.Join(configDir, "federation"),
+		federation.NewNodeDoor(func() int { return 0 }, func() string { return "" }),
+		func(line string) { log.Printf("[receipts] %s", line) },
+	)
+
+	connectionSvc := services.NewConnectionService(store, logStore, manager, vkAuthSvc, exePath, receiptEngine, configDir)
 	aboutSvc := services.NewAboutService(func() { manager.Stop() })
 	subscriptionSvc := services.NewSubscriptionService(store)
 	geoStore, err := geoassets.New(configDir)
@@ -94,7 +107,7 @@ func main() {
 	byedpiStrategySvc := services.NewByeDpiStrategyService(store, exePath)
 	autoSearchSvc := services.NewAutoSearchService(store, exePath, subscriptionSvc)
 	deepLinkSvc := services.NewDeepLinkService()
-	accountSvc := services.NewAccountService(configDir, store)
+	accountSvc := services.NewAccountService(configDir, store, receiptEngine)
 
 	// Register wingsv:// and vless:// with the OS (no-op off Windows; Linux uses the
 	// installed .desktop MimeType). A cold launch from a scheme link arrives in os.Args.

@@ -46,23 +46,47 @@ type AccountStatus struct {
 // in the browser), the live access figures, and sign-out. It persists the session next to the
 // other app state so a restart keeps the user signed in.
 type AccountService struct {
-	mu    sync.Mutex
-	path  string
-	app   *application.App
-	store *config.Store
-	st    accountState
+	mu       sync.Mutex
+	path     string
+	app      *application.App
+	store    *config.Store
+	receipts *federation.ReceiptEngine
+	st       accountState
 }
 
-// NewAccountService loads any stored session from configDir.
-func NewAccountService(configDir string, store *config.Store) *AccountService {
-	s := &AccountService{path: filepath.Join(configDir, "federation.json"), store: store}
+// NewAccountService loads any stored session from configDir and wires the federation receipt
+// engine: it registers the current-account provider and keeps a reference so a sign-out can
+// forget the signing key, queue and window mark. The engine is a constructor argument rather
+// than an exported setter so Wails does not surface it to the frontend as a binding.
+func NewAccountService(configDir string, store *config.Store, receipts *federation.ReceiptEngine) *AccountService {
+	s := &AccountService{path: filepath.Join(configDir, "federation.json"), store: store, receipts: receipts}
 	if raw, err := os.ReadFile(s.path); err == nil {
 		_ = json.Unmarshal(raw, &s.st)
+	}
+	if receipts != nil {
+		receipts.SetAccount(s.receiptAccount)
 	}
 	return s
 }
 
 func (s *AccountService) SetApp(app *application.App) { s.app = app }
+
+// receiptAccount reports the current account the receipt engine signs and sends for, or false
+// when signed out. The client id is the account's federation subject id. Safe for the engine
+// to poll each window: a sign-out flips it to false at once. Unexported so Wails does not
+// surface it to the frontend as a binding.
+func (s *AccountService) receiptAccount() (federation.ReceiptAccount, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.st.Token == "" || s.st.FederationID == "" {
+		return federation.ReceiptAccount{}, false
+	}
+	return federation.ReceiptAccount{
+		Client:   s.client(),
+		Token:    s.st.Token,
+		ClientID: s.st.FederationID,
+	}, true
+}
 
 func (s *AccountService) client() *federation.Client {
 	return federation.New(s.st.Panel)
@@ -327,6 +351,9 @@ func (s *AccountService) Logout() error {
 	client := s.client()
 	s.clearLocked()
 	s.emit()
+	if s.receipts != nil {
+		s.receipts.Reset()
+	}
 	if s.store != nil {
 		_ = s.store.RemoveFederationSubscription()
 	}

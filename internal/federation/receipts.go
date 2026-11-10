@@ -55,17 +55,33 @@ type ReceiptEngine struct {
 }
 
 // NewReceiptEngine builds an engine persisting its state (signing key, window mark, queue,
-// off flag) under dir. account returns the current account or false when signed out; door
-// routes the node-door fallback; logf records one line per state change (may be nil).
-func NewReceiptEngine(dir string, account func() (ReceiptAccount, bool), door NodeDoorRoute, logf func(string)) *ReceiptEngine {
+// off flag) under dir. door routes the node-door fallback; logf records one line per state
+// change (may be nil). Wire the account provider with SetAccount before the engine can sign.
+func NewReceiptEngine(dir string, door NodeDoorRoute, logf func(string)) *ReceiptEngine {
 	_ = os.MkdirAll(dir, 0o700)
 	return &ReceiptEngine{
-		dir:     dir,
-		key:     newReceiptKey(filepath.Join(dir, "signing.key")),
-		account: account,
-		door:    door,
-		log:     logf,
+		dir:  dir,
+		key:  newReceiptKey(filepath.Join(dir, "signing.key")),
+		door: door,
+		log:  logf,
 	}
+}
+
+// SetAccount wires the current-account provider: it returns the signed-in account the engine
+// signs and sends for, or false when signed out. Called afresh each window so a sign-out
+// stops receipts at once.
+func (e *ReceiptEngine) SetAccount(account func() (ReceiptAccount, bool)) {
+	e.mu.Lock()
+	e.account = account
+	e.mu.Unlock()
+}
+
+// currentAccount reads the provider, tolerating an unset one.
+func (e *ReceiptEngine) currentAccount() (ReceiptAccount, bool) {
+	if e.account == nil {
+		return ReceiptAccount{}, false
+	}
+	return e.account()
 }
 
 func (e *ReceiptEngine) note(reason string) {
@@ -90,7 +106,7 @@ func (e *ReceiptEngine) Collect(nodeID, transport string, uplinkTotal, downlinkT
 		e.note("receipts: node runs without payouts, receipts not needed")
 		return
 	}
-	acc, ok := e.account()
+	acc, ok := e.currentAccount()
 	if !ok || acc.ClientID == "" || nodeID == "" {
 		e.note("receipts: no ids, nothing to sign")
 		return
@@ -104,6 +120,13 @@ func (e *ReceiptEngine) Collect(nodeID, transport string, uplinkTotal, downlinkT
 	// a reset would re-sign the whole history.
 	if uplinkTotal < 0 || downlinkTotal < 0 {
 		e.note("receipts: counters unavailable")
+		return
+	}
+	// First valid read of this session only seeds the baseline: without a prior mark the
+	// delta would be the whole cumulative total over a zero-length window, which is both an
+	// over-claim and a malformed receipt.
+	if mark.At == 0 {
+		e.writeMark(receiptMark{Up: uplinkTotal, Down: downlinkTotal, At: now.UnixMilli()})
 		return
 	}
 	upDelta := uplinkTotal - mark.Up

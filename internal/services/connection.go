@@ -22,6 +22,7 @@ import (
 	"github.com/WINGS-N/wingsv-dex/internal/byedpi"
 	"github.com/WINGS-N/wingsv-dex/internal/config"
 	"github.com/WINGS-N/wingsv-dex/internal/dataplane"
+	"github.com/WINGS-N/wingsv-dex/internal/federation"
 	"github.com/WINGS-N/wingsv-dex/internal/gen/appcontrolpb"
 	"github.com/WINGS-N/wingsv-dex/internal/vktp"
 	"github.com/WINGS-N/wingsv-dex/internal/xray"
@@ -137,20 +138,33 @@ type ConnectionService struct {
 	// until the session is established (Android parity: provision + warmup, then WG).
 	warmup     chan struct{}
 	warmupDone bool
+
+	// Federation usage receipts: the engine signs and sends them, configDir is where its
+	// xray stats commander socket lives, and xrayStats is the live stats client for the
+	// current xray session (closed on disconnect). All nil/empty when signed out.
+	receiptEngine *federation.ReceiptEngine
+	configDir     string
+	xrayStats     *federation.XrayStats
 }
 
 // NewConnectionService wires the service to the store, the vkturn manager, the VK
 // account sign-in service, and the path of this executable (re-launched as the
 // privileged net-helper). vkauth is taken as a constructor argument rather than an
 // exported setter so Wails does not treat VKAuthService as a boundary model.
-func NewConnectionService(store *config.Store, logStore *applog.Store, manager *vktp.Manager, vkauth *VKAuthService, exePath string) *ConnectionService {
+// receipts is the federation receipt engine (may be nil) and configDir is where its xray
+// stats commander socket lives. Both are constructor arguments rather than exported setters
+// so Wails does not surface the engine to the frontend as a binding, the same reason vkauth
+// is passed in here.
+func NewConnectionService(store *config.Store, logStore *applog.Store, manager *vktp.Manager, vkauth *VKAuthService, exePath string, receipts *federation.ReceiptEngine, configDir string) *ConnectionService {
 	return &ConnectionService{
-		store:    store,
-		logStore: logStore,
-		manager:  manager,
-		vkauth:   vkauth,
-		exePath:  exePath,
-		state:    ConnectionState{Status: StatusDisconnected},
+		store:         store,
+		logStore:      logStore,
+		manager:       manager,
+		vkauth:        vkauth,
+		exePath:       exePath,
+		receiptEngine: receipts,
+		configDir:     configDir,
+		state:         ConnectionState{Status: StatusDisconnected},
 	}
 }
 
@@ -662,6 +676,12 @@ func (s *ConnectionService) connectXray() (ConnectionState, error) {
 		frontSocks = byedpiSettings.ListenAddr()
 	}
 	routingRules := s.store.XrayRoutingRules()
+	// Federation profiles sign usage receipts, which need xray's exact proxy-outbound byte
+	// counters: turn on the stats commander only for them and only in VPN mode.
+	statsListen, statsTarget := "", ""
+	if vpn && isFederationXray(profile) {
+		statsListen, statsTarget = s.xrayStatsEndpoints()
+	}
 	cfgJSON, err := xray.Build(xray.Options{
 		XrayBin:          bin,
 		Profile:          profile,
@@ -669,6 +689,7 @@ func (s *ConnectionService) connectXray() (ConnectionState, error) {
 		IncludeTun:       vpn,
 		ByeDPIFrontSocks: frontSocks,
 		RoutingRules:     routingRules,
+		StatsAPIListen:   statsListen,
 	})
 	if err != nil {
 		s.runtimeLogf("xray build config failure: %v", err)
@@ -732,6 +753,9 @@ func (s *ConnectionService) connectXray() (ConnectionState, error) {
 		s.runStatsPoller(ctx, xrayTrafficStats, func(rx, tx int64) {
 			s.store.SetXrayTraffic(profile.ID, base.Rx+rx, base.Tx+tx)
 		})
+		if statsTarget != "" {
+			s.startXrayReceipts(ctx, statsTarget, profile.Address)
+		}
 	}
 
 	s.setState(ConnectionState{Status: StatusConnected, Endpoint: profile.Address, Title: profile.Title})
@@ -896,6 +920,15 @@ func (s *ConnectionService) startTelemetryAndStats(ctx context.Context, threads 
 	s.runStatsPoller(ctx, s.wgTrafficStats, func(rx, tx int64) {
 		s.store.SetVKTraffic(activeID, base.Rx+rx, base.Tx+tx)
 	})
+	// Managed VK TURN profiles are federation donor nodes: sign receipts for their traffic
+	// off the relay's payload counters.
+	s.mu.Lock()
+	managed := s.appliedProfile.Managed
+	endpoint := s.appliedProfile.VKTurnEndpoint
+	s.mu.Unlock()
+	if managed {
+		s.startVKTurnReceipts(ctx, endpoint)
+	}
 	s.refreshIPInfoAsync(ctx)
 
 	go func() {

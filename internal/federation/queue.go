@@ -39,7 +39,7 @@ func (e *ReceiptEngine) Flush() {
 	if len(queue) == 0 {
 		return
 	}
-	acc, ok := e.account()
+	acc, ok := e.currentAccount()
 	if !ok || acc.ClientID == "" {
 		return // signed out: keep the queue for the next account
 	}
