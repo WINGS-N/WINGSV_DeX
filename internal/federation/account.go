@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"strconv"
 	"strings"
@@ -215,6 +217,54 @@ type Receipt struct {
 	PayloadDown     int64  `json:"payload_down_bytes"`
 	Nonce           string `json:"nonce"`
 	Signature       string `json:"signature"`
+}
+
+// UploadAvatar sets the account avatar from raw image bytes and returns the new version the
+// panel assigned (used to bust the avatar URL cache). mime is the image's content type.
+func (c *Client) UploadAvatar(ctx context.Context, token string, image []byte, mime string) (int64, error) {
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	part, err := w.CreatePart(textproto.MIMEHeader{
+		"Content-Disposition": []string{`form-data; name="avatar"; filename="avatar.png"`},
+		"Content-Type":        []string{mime},
+	})
+	if err != nil {
+		return 0, err
+	}
+	if _, err := part.Write(image); err != nil {
+		return 0, err
+	}
+	if err := w.Close(); err != nil {
+		return 0, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.panel+"/api/app/avatar", &body)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("federation: upload avatar: %w", err)
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if msg := panelError(data); msg != "" {
+			return 0, errors.New("federation: " + msg)
+		}
+		return 0, fmt.Errorf("federation: upload avatar: http %d", resp.StatusCode)
+	}
+	var out struct {
+		AvatarVersion int64 `json:"avatar_version"`
+	}
+	_ = json.Unmarshal(data, &out)
+	return out.AvatarVersion, nil
+}
+
+// RemoveAvatar drops the account avatar, returning it to the panel placeholder.
+func (c *Client) RemoveAvatar(ctx context.Context, token string) error {
+	return c.do(ctx, http.MethodDelete, "/api/app/avatar", token, nil, nil)
 }
 
 // SendKey registers the device's receipt-signing public key with the panel. The caller sends
