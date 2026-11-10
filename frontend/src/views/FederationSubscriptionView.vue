@@ -25,13 +25,21 @@
         </div>
         <SamsungButton v-if="present" variant="secondary" @click="copy">Скопировать ссылку</SamsungButton>
       </SamsungCard>
+
+      <div v-if="present" class="mt-4 flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3.5">
+        <TriangleAlert :size="20" class="mt-0.5 shrink-0 text-amber-400" />
+        <p class="text-[13px] leading-relaxed text-amber-200/90">
+          Ни в коем случае не копируйте эту подписку в другие программы, помимо WINGS V и WINGS V DeX. Не используйте
+          эту подписку на другом WINGS Account.
+        </p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { onMounted, ref } from 'vue';
-import { ChevronLeft } from '@lucide/vue';
+import { ChevronLeft, TriangleAlert } from '@lucide/vue';
 import { AccountService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
 import SamsungButton from '@/components/layout/SamsungButton.vue';
