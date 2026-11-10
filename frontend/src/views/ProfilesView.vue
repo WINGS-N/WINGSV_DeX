@@ -467,7 +467,9 @@ async function refreshSubs() {
 // until its badge lands, then the list sorts best-to-worst once the run finishes.
 async function runTest(kind) {
   try {
-    const ids = await XrayTestService.Start(kind);
+    // Test only the profiles in the active filter chip's scope, not the whole list.
+    const scope = filteredItems.value.map((p) => p.id);
+    const ids = await XrayTestService.Start(kind, scope);
     Object.keys(pending).forEach((k) => delete pending[k]);
     (ids ?? []).forEach((id) => {
       pending[id] = true;

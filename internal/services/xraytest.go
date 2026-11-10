@@ -51,8 +51,24 @@ const probeURL = "https://www.gstatic.com/generate_204"
 // Start kicks off a test ("tcping" | "real") in the background over every Xray node and
 // returns the ids being tested so the UI can show a loader on each until its result event
 // arrives. Results stream via XrayTestResultEvent; XrayTestDoneEvent marks completion.
-func (s *XrayTestService) Start(kind string) []string {
+// Start measures the given profiles (by id) and returns the ids it actually started. When
+// scopeIDs is non-empty only those profiles are tested, so the UI can test just the profiles
+// in the active subscription-filter chip instead of the whole list; an empty scope tests all.
+func (s *XrayTestService) Start(kind string, scopeIDs []string) []string {
 	profiles := s.store.XrayList()
+	if len(scopeIDs) > 0 {
+		want := make(map[string]bool, len(scopeIDs))
+		for _, id := range scopeIDs {
+			want[id] = true
+		}
+		var filtered []config.XrayProfile
+		for _, p := range profiles {
+			if want[p.ID] {
+				filtered = append(filtered, p)
+			}
+		}
+		profiles = filtered
+	}
 	ids := make([]string, len(profiles))
 	for i, p := range profiles {
 		ids[i] = p.ID
