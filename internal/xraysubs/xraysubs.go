@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"github.com/WINGS-N/wingsv-dex/internal/config"
+	wingsvpb "github.com/WINGS-N/wingsv-dex/internal/gen/wingsvpb"
+	"github.com/WINGS-N/wingsv-dex/internal/wingsv"
 )
 
 // shareLinkRe matches the xray share links a subscription body may contain.
@@ -112,7 +114,7 @@ func fetchFrom(ctx context.Context, sub config.Subscription, rawURL string, clie
 	if err != nil {
 		return Result{}, err
 	}
-	nodes := ParseProfiles(string(body), sub.ID, sub.Title)
+	nodes := parseSubscriptionBody(body, resp.Header.Get("Content-Type"), sub.ID, sub.Title)
 	if len(nodes) == 0 {
 		return Result{}, errors.New("subscription response contains no valid nodes")
 	}
@@ -120,6 +122,46 @@ func fetchFrom(ctx context.Context, sub config.Subscription, rawURL string, clie
 		Nodes: nodes,
 		Quota: ParseQuota(resp.Header.Get("Subscription-Userinfo")),
 	}, nil
+}
+
+// parseSubscriptionBody turns a subscription response into xray nodes. The federation link
+// serves a WINGS binary config frame (content type application/x-wingsv-config) rather than a
+// plain vless:// list, so that frame is decoded and its xray raw links pulled out; an ordinary
+// subscription falls through to the plain-text parse. A body may also carry wingsv:// links as
+// text, which are decoded the same way.
+func parseSubscriptionBody(body []byte, contentType, subID, subTitle string) []config.XrayProfile {
+	text := string(body)
+	if strings.Contains(strings.ToLower(contentType), "application/x-wingsv-config") {
+		if cfg, err := wingsv.DecodeFrame(body); err == nil {
+			if nodes := ParseProfiles(strings.Join(xrayRawLinks(cfg), "\n"), subID, subTitle); len(nodes) > 0 {
+				return nodes
+			}
+		}
+	}
+	if nodes := ParseProfiles(text, subID, subTitle); len(nodes) > 0 {
+		return nodes
+	}
+	var links []string
+	for _, l := range wingsv.ExtractLinks(text) {
+		if cfg, err := wingsv.Decode(l); err == nil {
+			links = append(links, xrayRawLinks(cfg)...)
+		}
+	}
+	if len(links) > 0 {
+		return ParseProfiles(strings.Join(links, "\n"), subID, subTitle)
+	}
+	return nil
+}
+
+// xrayRawLinks pulls the vless share links out of a decoded WINGS config.
+func xrayRawLinks(cfg *wingsvpb.Config) []string {
+	var out []string
+	for _, p := range cfg.GetXray().GetProfiles() {
+		if rl := strings.TrimSpace(p.GetRawLink()); rl != "" {
+			out = append(out, rl)
+		}
+	}
+	return out
 }
 
 // ParseProfiles extracts xray nodes from a subscription body: direct share links first,

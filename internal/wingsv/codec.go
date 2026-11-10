@@ -51,6 +51,31 @@ func ExtractLink(text string) string {
 	return ""
 }
 
+// ExtractLinks pulls every wingsv:// link out of arbitrary text (a subscription body may
+// carry several), in order of appearance.
+func ExtractLinks(text string) []string {
+	return linkPattern.FindAllString(strings.TrimSpace(text), -1)
+}
+
+// DecodeFrame parses the raw bytes of a wingsv config frame (the bytes that sit inside a
+// wingsv:// link, after base64) straight into a Config. The federation subscription serves
+// this frame verbatim under the application/x-wingsv-config content type, so the base64
+// round-trip a link would add is skipped.
+func DecodeFrame(frame []byte) (*wingsvpb.Config, error) {
+	if len(frame) == 0 {
+		return nil, errors.New("wingsv: empty frame")
+	}
+	inflated, err := decompress(frame)
+	if err != nil {
+		return nil, err
+	}
+	config := &wingsvpb.Config{}
+	if err := proto.Unmarshal(inflated, config); err != nil {
+		return nil, fmt.Errorf("wingsv: protobuf: %w", err)
+	}
+	return config, nil
+}
+
 // Decode parses a wingsv:// link (or text containing one) into its Config. It is
 // lenient: it extracts the link from surrounding
 // text, strips stray slashes and whitespace, fixes base64 padding, and accepts both
