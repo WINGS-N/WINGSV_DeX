@@ -182,6 +182,20 @@ func (s *AutoSearchService) doRun(ctx context.Context, mode string) {
 		}
 		candidates = filtered
 	}
+	// A signed-in WINGS Account takes precedence over the free pool: when its federation
+	// subscription has nodes, search those (plus anything auto-search itself found) and set
+	// the free subscriptions aside.
+	if s.store.HasFederationSubscription() {
+		fed := candidates[:0]
+		for _, c := range candidates {
+			if c.SubscriptionID == config.FederationSubscriptionID || c.SubscriptionID == config.AutoSearchSubscriptionID {
+				fed = append(fed, c)
+			}
+		}
+		if len(fed) > 0 {
+			candidates = fed
+		}
+	}
 	if len(candidates) == 0 {
 		s.finishFailed("нет профилей для проверки")
 		return
