@@ -219,6 +219,7 @@ import {
 import { confirm } from '@/stores/confirm.js';
 import { openOverlay } from '@/stores/nav.js';
 import { showToast } from '@/stores/toast.js';
+import { FEDERATION_SUBSCRIPTION_ID } from '@/lib/federation.js';
 import OneuiSelect from '@/components/controls/OneuiSelect.vue';
 import AppHeader from '@/components/layout/AppHeader.vue';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
@@ -325,10 +326,19 @@ const subscriptionChips = computed(() => {
   for (const p of xrayProfiles.value) {
     if (p.subscriptionId && !byId.has(p.subscriptionId)) {
       const sub = subscriptions.value.find((s) => s.id === p.subscriptionId);
-      byId.set(p.subscriptionId, sub?.title || sub?.url || p.subscriptionTitle || p.subscriptionId);
+      let title = sub?.title || sub?.url || p.subscriptionTitle || p.subscriptionId;
+      // The account subscription always reads as WINGS Account, never a stale stored URL.
+      if (p.subscriptionId === FEDERATION_SUBSCRIPTION_ID) title = 'WINGS Account';
+      byId.set(p.subscriptionId, title);
     }
   }
-  const chips = [...byId.entries()].map(([id, title]) => ({ id, title }));
+  let chips = [...byId.entries()].map(([id, title]) => ({ id, title }));
+  // The account subscription sits right after All/Favorites: its servers get touched the most,
+  // so hunting for it among the other subscriptions is pointless.
+  chips = chips.sort((a, b) =>
+    a.id === FEDERATION_SUBSCRIPTION_ID ? -1 : b.id === FEDERATION_SUBSCRIPTION_ID ? 1 : 0,
+  );
+  // Manual profiles ("Свои") go last.
   if (xrayProfiles.value.some((p) => !p.subscriptionId)) chips.push({ id: 'manual', title: 'Свои' });
   return chips;
 });

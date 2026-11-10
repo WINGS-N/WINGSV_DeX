@@ -637,7 +637,13 @@ func (s *Store) EnsureFederationSubscription(url string) error {
 			continue
 		}
 		if strings.TrimSpace(s.data.Subscriptions[i].URL) == url {
-			return nil
+			// URL unchanged, but still correct a stale title from an older store so the chip
+			// reads WINGS Account rather than the bare host.
+			if s.data.Subscriptions[i].Title == FederationSubscriptionTitle {
+				return nil
+			}
+			s.data.Subscriptions[i].Title = FederationSubscriptionTitle
+			return s.saveLocked()
 		}
 		s.data.Subscriptions[i].URL = url
 		s.data.Subscriptions[i].Title = FederationSubscriptionTitle
