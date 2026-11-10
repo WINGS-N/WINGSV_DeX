@@ -70,8 +70,16 @@ func SetupMarkBypass(fwmark int, physical *netlink.Route) (*MarkBypass, error) {
 	if err != nil {
 		return nil, fmt.Errorf("wg: list bypass routes: %w", err)
 	}
-	if len(routes) != 0 {
-		return nil, fmt.Errorf("wg: bypass table %d is occupied", BypassTable)
+	// An unclean shutdown (SIGKILL, no teardown) can leave our own route here. Clear routes
+	// we own, marked with bypassRouteProtocol, so startup self-heals; a route we do not
+	// recognize still blocks, since the table is ours to manage.
+	for i := range routes {
+		if routes[i].Protocol != netlink.RouteProtocol(bypassRouteProtocol) {
+			return nil, fmt.Errorf("wg: bypass table %d is occupied", BypassTable)
+		}
+		if err := netlink.RouteDel(&routes[i]); err != nil {
+			return nil, fmt.Errorf("wg: clear stale bypass route: %w", err)
+		}
 	}
 	route := netlink.Route{
 		Gw:        physical.Gw,
