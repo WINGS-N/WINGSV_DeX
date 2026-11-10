@@ -201,6 +201,47 @@ func (c *Client) ChangePassword(ctx context.Context, token, current, next string
 	}, nil)
 }
 
+// Receipt is a signed statement of how many payload bytes a device carried through one
+// node over one window. The device signs it with a key the node does not hold, so the node
+// cannot forge usage it did not serve. The field names are the canonical wire form: the
+// signed-byte layout in receiptKey.sign depends on them, do not rename without the server.
+type Receipt struct {
+	ClientID        string `json:"client_id"`
+	NodeID          string `json:"node_id"`
+	Transport       string `json:"transport"`
+	WindowStartUnix int64  `json:"window_start_unix"`
+	WindowEndUnix   int64  `json:"window_end_unix"`
+	PayloadUpBytes  int64  `json:"payload_up_bytes"`
+	PayloadDown     int64  `json:"payload_down_bytes"`
+	Nonce           string `json:"nonce"`
+	Signature       string `json:"signature"`
+}
+
+// SendKey registers the device's receipt-signing public key with the panel. The caller sends
+// it once per account; the server keeps it to verify every later receipt.
+func (c *Client) SendKey(ctx context.Context, token, publicKeyB64 string) error {
+	return c.do(ctx, http.MethodPost, "/api/app/federation/key", token, map[string]string{"public_key": publicKeyB64}, nil)
+}
+
+// SendReceipts carries signed receipts to the panel and returns how many it accepted.
+// clientIP is this device's own address as measured off the tunnel; empty omits it.
+func (c *Client) SendReceipts(ctx context.Context, token string, receipts []Receipt, clientIP string) (int, error) {
+	if len(receipts) == 0 {
+		return 0, nil
+	}
+	body := map[string]any{"receipts": receipts}
+	if clientIP != "" {
+		body["client_ip"] = clientIP
+	}
+	var resp struct {
+		Accepted int `json:"accepted"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/api/app/federation/receipts", token, body, &resp); err != nil {
+		return 0, err
+	}
+	return resp.Accepted, nil
+}
+
 // DonorNode is one node an account has enrolled into the federation.
 type DonorNode struct {
 	NodeID              string  `json:"nodeId"`
