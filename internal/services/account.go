@@ -207,6 +207,92 @@ func (s *AccountService) Access() (federation.Access, error) {
 	return access, nil
 }
 
+// Donor reports what this account contributes to the federation and how it is being used.
+func (s *AccountService) Donor() (federation.Donor, error) {
+	s.mu.Lock()
+	token := s.st.Token
+	client := s.client()
+	s.mu.Unlock()
+	if token == "" {
+		return federation.Donor{}, errors.New("not signed in")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return client.Donor(ctx, token)
+}
+
+// EnrollNode returns the shell command that enrolls a new donated server with the given budget
+// (in gigabytes); the user runs it on the server they want to contribute.
+func (s *AccountService) EnrollNode(budgetGB int64) (string, error) {
+	s.mu.Lock()
+	token := s.st.Token
+	client := s.client()
+	s.mu.Unlock()
+	if token == "" {
+		return "", errors.New("not signed in")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return client.EnrollCommand(ctx, token, budgetGB)
+}
+
+// SetNodeBudget sets a donated node's declared budget. The budget is given in gigabytes and
+// stored in bytes; it returns the stored byte value.
+func (s *AccountService) SetNodeBudget(nodeID string, budgetGB int64) (int64, error) {
+	s.mu.Lock()
+	token := s.st.Token
+	client := s.client()
+	s.mu.Unlock()
+	if token == "" {
+		return 0, errors.New("not signed in")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return client.SetNodeBudget(ctx, token, nodeID, budgetGB*1024*1024*1024)
+}
+
+// Invites reads the account's invite codes and whether it may mint more.
+func (s *AccountService) Invites() (federation.Invites, error) {
+	s.mu.Lock()
+	token := s.st.Token
+	client := s.client()
+	s.mu.Unlock()
+	if token == "" {
+		return federation.Invites{}, errors.New("not signed in")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return client.Invites(ctx, token)
+}
+
+// CreateInvite mints a new invite code.
+func (s *AccountService) CreateInvite() (federation.Invite, error) {
+	s.mu.Lock()
+	token := s.st.Token
+	client := s.client()
+	s.mu.Unlock()
+	if token == "" {
+		return federation.Invite{}, errors.New("not signed in")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return client.CreateInvite(ctx, token)
+}
+
+// RedeemInvite redeems an invite code onto this account.
+func (s *AccountService) RedeemInvite(code string) error {
+	s.mu.Lock()
+	token := s.st.Token
+	client := s.client()
+	s.mu.Unlock()
+	if token == "" {
+		return errors.New("not signed in")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return client.RedeemInvite(ctx, token, code)
+}
+
 // ChangePassword updates the account password.
 func (s *AccountService) ChangePassword(current, next string) error {
 	s.mu.Lock()

@@ -201,6 +201,171 @@ func (c *Client) ChangePassword(ctx context.Context, token, current, next string
 	}, nil)
 }
 
+// DonorNode is one node an account has enrolled into the federation.
+type DonorNode struct {
+	NodeID              string  `json:"nodeId"`
+	Hostname            string  `json:"hostname"`
+	State               string  `json:"state"`
+	Online              bool    `json:"online"`
+	XrayVersion         string  `json:"xrayVersion"`
+	VktpVersion         string  `json:"vktpVersion"`
+	DeclaredBudgetBytes int64   `json:"declaredBudgetBytes"`
+	UsedBytes           int64   `json:"usedBytes"`
+	ProbeBytes          int64   `json:"probeBytes"`
+	Sessions            int     `json:"sessions"`
+	UpRateBps           float64 `json:"upRateBps"`
+	DownRateBps         float64 `json:"downRateBps"`
+}
+
+// Donor is what the account contributes to the federation and how it is being used: the
+// totals across its nodes plus the per-node breakdown.
+type Donor struct {
+	Enabled             bool        `json:"enabled"`
+	Nodes               int         `json:"nodes"`
+	NodesOnline         int         `json:"nodesOnline"`
+	Sessions            int         `json:"sessions"`
+	DeclaredBudgetBytes int64       `json:"declaredBudgetBytes"`
+	UsedBytes           int64       `json:"usedBytes"`
+	ProbeBytes          int64       `json:"probeBytes"`
+	Error               string      `json:"error"`
+	List                []DonorNode `json:"list"`
+}
+
+// Donor reads the account's donor summary.
+func (c *Client) Donor(ctx context.Context, token string) (Donor, error) {
+	var resp struct {
+		Enabled             bool   `json:"enabled"`
+		Nodes               int    `json:"nodes"`
+		NodesOnline         int    `json:"nodes_online"`
+		Sessions            int    `json:"sessions"`
+		DeclaredBudgetBytes int64  `json:"declared_budget_bytes"`
+		UsedBytes           int64  `json:"used_bytes"`
+		ProbeBytes          int64  `json:"probe_bytes"`
+		Error               string `json:"error"`
+		NodeList            []struct {
+			ID                  string  `json:"id"`
+			NodeID              string  `json:"node_id"`
+			Hostname            string  `json:"hostname"`
+			State               string  `json:"state"`
+			Online              bool    `json:"online"`
+			XrayVersion         string  `json:"xray_version"`
+			VktpVersion         string  `json:"vktp_version"`
+			DeclaredBudgetBytes int64   `json:"declared_budget_bytes"`
+			UsedBytes           int64   `json:"used_bytes"`
+			ProbeBytes          int64   `json:"probe_bytes"`
+			Sessions            int     `json:"sessions"`
+			UpRateBps           float64 `json:"up_rate_bps"`
+			DownRateBps         float64 `json:"down_rate_bps"`
+		} `json:"node_list"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/app/federation/summary", token, nil, &resp); err != nil {
+		return Donor{}, err
+	}
+	out := Donor{
+		Enabled: resp.Enabled, Nodes: resp.Nodes, NodesOnline: resp.NodesOnline, Sessions: resp.Sessions,
+		DeclaredBudgetBytes: resp.DeclaredBudgetBytes, UsedBytes: resp.UsedBytes, ProbeBytes: resp.ProbeBytes,
+		Error: resp.Error,
+	}
+	for _, n := range resp.NodeList {
+		id := n.ID
+		if id == "" {
+			id = n.NodeID
+		}
+		out.List = append(out.List, DonorNode{
+			NodeID: id, Hostname: n.Hostname, State: n.State, Online: n.Online,
+			XrayVersion: n.XrayVersion, VktpVersion: n.VktpVersion,
+			DeclaredBudgetBytes: n.DeclaredBudgetBytes, UsedBytes: n.UsedBytes, ProbeBytes: n.ProbeBytes,
+			Sessions: n.Sessions, UpRateBps: n.UpRateBps, DownRateBps: n.DownRateBps,
+		})
+	}
+	return out, nil
+}
+
+// EnrollCommand asks the panel for the shell command that enrolls a new node with a budget
+// (in gigabytes). The user runs the returned command on the server they want to donate.
+func (c *Client) EnrollCommand(ctx context.Context, token string, budgetGB int64) (string, error) {
+	if budgetGB < 0 {
+		budgetGB = 0
+	}
+	var resp struct {
+		Command string `json:"command"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/api/app/federation/enroll", token, map[string]int64{"budget_gb": budgetGB}, &resp); err != nil {
+		return "", err
+	}
+	return resp.Command, nil
+}
+
+// SetNodeBudget sets a donated node's declared budget in bytes and returns the stored value.
+func (c *Client) SetNodeBudget(ctx context.Context, token, nodeID string, bytes int64) (int64, error) {
+	var resp struct {
+		DeclaredBudgetBytes int64 `json:"declared_budget_bytes"`
+	}
+	if err := c.do(ctx, http.MethodPut, "/api/app/federation/nodes/"+url.PathEscape(nodeID)+"/budget", token, map[string]int64{"declared_budget_bytes": bytes}, &resp); err != nil {
+		return 0, err
+	}
+	return resp.DeclaredBudgetBytes, nil
+}
+
+// Invite is one of an account's invite codes.
+type Invite struct {
+	Token    string `json:"token"`
+	Link     string `json:"link"`
+	UseCount int    `json:"useCount"`
+	MaxUses  int    `json:"maxUses"`
+	Spent    bool   `json:"spent"`
+}
+
+// Invites is the account's invite state: whether it may invite, and its existing codes.
+type Invites struct {
+	MayInvite bool     `json:"mayInvite"`
+	Reason    string   `json:"reason"`
+	List      []Invite `json:"list"`
+}
+
+// Invites reads the account's invite codes.
+func (c *Client) Invites(ctx context.Context, token string) (Invites, error) {
+	var resp struct {
+		MayInvite bool   `json:"may_invite"`
+		Reason    string `json:"reason"`
+		Invites   []struct {
+			Token    string `json:"token"`
+			Link     string `json:"link"`
+			UseCount int    `json:"use_count"`
+			MaxUses  int    `json:"max_uses"`
+			Spent    bool   `json:"spent"`
+		} `json:"invites"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/app/invites", token, nil, &resp); err != nil {
+		return Invites{}, err
+	}
+	out := Invites{MayInvite: resp.MayInvite, Reason: resp.Reason}
+	for _, i := range resp.Invites {
+		out.List = append(out.List, Invite{Token: i.Token, Link: i.Link, UseCount: i.UseCount, MaxUses: i.MaxUses, Spent: i.Spent})
+	}
+	return out, nil
+}
+
+// CreateInvite mints a new invite code.
+func (c *Client) CreateInvite(ctx context.Context, token string) (Invite, error) {
+	var resp struct {
+		Token    string `json:"token"`
+		Link     string `json:"link"`
+		UseCount int    `json:"use_count"`
+		MaxUses  int    `json:"max_uses"`
+		Spent    bool   `json:"spent"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/api/app/invites", token, map[string]string{}, &resp); err != nil {
+		return Invite{}, err
+	}
+	return Invite{Token: resp.Token, Link: resp.Link, UseCount: resp.UseCount, MaxUses: resp.MaxUses, Spent: resp.Spent}, nil
+}
+
+// RedeemInvite redeems an invite code onto this account.
+func (c *Client) RedeemInvite(ctx context.Context, token, code string) error {
+	return c.do(ctx, http.MethodPost, "/api/app/invites/redeem", token, map[string]string{"token": code}, nil)
+}
+
 // sessionResp is the identity payload the login and session endpoints return.
 type sessionResp struct {
 	Token   string `json:"token"`
