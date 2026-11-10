@@ -10,6 +10,7 @@ import (
 	"runtime"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/WINGS-N/wingsv-dex/internal/applog"
 	"github.com/WINGS-N/wingsv-dex/internal/config"
@@ -31,6 +32,12 @@ var assets embed.FS
 func main() {
 	// Privileged data-plane mode: re-launched via pkexec to run the kernel
 	// WireGuard + protect socket under CAP_NET_ADMIN. Handled before any GUI setup.
+	if len(os.Args) > 1 && os.Args[1] == "--net-helper-server" {
+		if err := runNetHelperServer(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "--net-helper" {
 		if err := nethelper.Run(); err != nil {
 			log.Fatal(err)
@@ -49,6 +56,12 @@ func main() {
 	}
 
 	configDir := appConfigDir()
+	autostart := false
+	for _, arg := range os.Args[1:] {
+		if arg == "--autostart" {
+			autostart = true
+		}
+	}
 
 	store, err := config.NewStore(filepath.Join(configDir, "profiles.json"))
 	if err != nil {
@@ -160,11 +173,17 @@ func main() {
 		Connect:    func() { go func() { _, _ = connectionSvc.Connect() }() },
 		Disconnect: func() { connectionSvc.Disconnect() },
 		StateEvent: services.ConnectionStateEvent,
+		Hidden:     autostart,
 	})
 
 	deliver = func(link string) {
 		deepLinkSvc.Deliver(link)
 		ctrl.Show()
+	}
+	if autostart {
+		app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+			ctrl.Connect()
+		})
 	}
 
 	// Cold launch from a scheme link: hold it for the frontend to pull once it mounts.

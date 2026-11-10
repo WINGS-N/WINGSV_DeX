@@ -29,6 +29,36 @@ func sampleLink(t *testing.T) string {
 	return link
 }
 
+func TestSubscriptionProxyPersistsAndValidates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "store.json")
+	store, err := NewStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub, err := store.AddSubscription("Test", "https://example.test/sub")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSubscriptionProxy(sub.ID, "http://127.0.0.1:8080"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetSubscriptionProxy(sub.ID, "http://example.test:8080"); err == nil {
+		t.Fatal("accepted non-loopback proxy")
+	}
+	reloaded, err := NewStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, got := range reloaded.SubscriptionList() {
+		if got.ID == sub.ID && got.ProxyURL != "http://127.0.0.1:8080" {
+			t.Fatalf("proxy persisted as %q", got.ProxyURL)
+		}
+	}
+	if err := reloaded.SetSubscriptionProxy(sub.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestStoreImportDedupFavoritePersist(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "profiles.json")
 	store, err := NewStore(path)

@@ -7,6 +7,7 @@
 package wg
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -62,12 +63,21 @@ func Up(cfg Config) error {
 	if cfg.Amnezia {
 		return UpAWG(cfg)
 	}
-	_ = Down(cfg)
+	if err := validateConfig(cfg); err != nil {
+		return err
+	}
+	if err := prepareReplacement(cfg); err != nil {
+		return err
+	}
 
 	ensureModule("wireguard")
 	link := &netlink.Wireguard{LinkAttrs: netlink.LinkAttrs{Name: cfg.Interface}}
 	if err := netlink.LinkAdd(link); err != nil {
 		return fmt.Errorf("wg: create %s: %w", cfg.Interface, err)
+	}
+	if err := netlink.LinkSetAlias(link, linkAlias); err != nil {
+		_ = netlink.LinkDel(link)
+		return fmt.Errorf("wg: set link ownership alias: %w", err)
 	}
 	if err := configureDevice(cfg); err != nil {
 		_ = netlink.LinkDel(link)
@@ -81,19 +91,36 @@ func Up(cfg Config) error {
 // via the `awg` tool (both from amneziawg-tools + the amneziawg kernel module); the
 // rest (addr, mtu, routes, fwmark policy) is identical to the WireGuard path.
 func UpAWG(cfg Config) error {
-	_ = Down(cfg)
+	if err := validateConfig(cfg); err != nil {
+		return err
+	}
+	if err := prepareReplacement(cfg); err != nil {
+		return err
+	}
 	if out, err := exec.Command("ip", "link", "add", "name", cfg.Interface, "type", "amneziawg").CombinedOutput(); err != nil {
 		return fmt.Errorf("wg: create amneziawg %s (amneziawg-tools/kernel module missing?): %w: %s",
 			cfg.Interface, err, strings.TrimSpace(string(out)))
 	}
+	created, err := netlink.LinkByName(cfg.Interface)
+	if err != nil {
+		return fmt.Errorf("wg: amneziawg link %s after create: %w", cfg.Interface, err)
+	}
+	if err := netlink.LinkSetAlias(created, linkAlias); err != nil {
+		return fmt.Errorf("wg: set link ownership alias: %w", err)
+	}
+	created.Attrs().Alias = linkAlias
 	if err := awgSetConf(cfg); err != nil {
-		_ = exec.Command("ip", "link", "del", cfg.Interface).Run()
+		if current, lookupErr := netlink.LinkByName(cfg.Interface); lookupErr == nil {
+			_ = deleteOwnedAWG(created, current, netlink.LinkDel)
+		}
 		return err
 	}
 	link, err := netlink.LinkByName(cfg.Interface)
 	if err != nil {
-		_ = exec.Command("ip", "link", "del", cfg.Interface).Run()
 		return fmt.Errorf("wg: amneziawg link %s: %w", cfg.Interface, err)
+	}
+	if !sameOwnedAWG(created, link) {
+		return fmt.Errorf("wg: amneziawg link %s changed during setup", cfg.Interface)
 	}
 	return finishUp(cfg, link)
 }
@@ -173,13 +200,89 @@ func awgSetConf(cfg Config) error {
 
 // Down removes the fwmark rules and deletes the interface (which drops its routes).
 func Down(cfg Config) error {
+	link, err := netlink.LinkByName(cfg.Interface)
+	if err != nil {
+		if isLinkNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("wg: lookup interface %s: %w", cfg.Interface, err)
+	}
+	if !ownedLink(link, cfg.Amnezia) {
+		return fmt.Errorf("wg: refusing to remove non-owned interface %s", cfg.Interface)
+	}
 	removeRules(cfg)
 	_ = SetTunnelMasquerade(false, cfg.Interface, AppsMark)
 	_ = SetBypassMasquerade(false, 0)
-	if link, err := netlink.LinkByName(cfg.Interface); err == nil {
-		return netlink.LinkDel(link)
+	return netlink.LinkDel(link)
+}
+
+const linkAlias = "wingsv-dex:wg"
+
+func ownedLink(link netlink.Link, awg bool) bool {
+	if link == nil || link.Attrs() == nil || link.Attrs().Alias != linkAlias {
+		return false
+	}
+	if awg {
+		generic, ok := link.(*netlink.GenericLink)
+		return ok && generic.LinkType == "amneziawg"
+	}
+	_, ok := link.(*netlink.Wireguard)
+	return ok
+}
+
+func sameOwnedAWG(created, current netlink.Link) bool {
+	return created != nil && current != nil && created.Attrs() != nil && current.Attrs() != nil &&
+		created.Attrs().Index == current.Attrs().Index && ownedLink(created, true) && ownedLink(current, true)
+}
+
+func deleteOwnedAWG(created, current netlink.Link, del func(netlink.Link) error) error {
+	if !sameOwnedAWG(created, current) {
+		return fmt.Errorf("wg: refusing to delete changed or non-owned amneziawg link")
+	}
+	return del(created)
+}
+
+func prepareReplacement(cfg Config) error {
+	link, err := netlink.LinkByName(cfg.Interface)
+	if err != nil {
+		if isLinkNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("wg: lookup interface %s: %w", cfg.Interface, err)
+	}
+	if !ownedLink(link, cfg.Amnezia) {
+		return fmt.Errorf("wg: interface %s already exists and is not owned", cfg.Interface)
+	}
+	return Down(cfg)
+}
+
+func validateConfig(cfg Config) error {
+	if _, err := parseCIDRs(cfg.Addresses); err != nil {
+		return err
+	}
+	if _, err := parseCIDRs(cfg.AllowedIPs); err != nil {
+		return err
+	}
+	if _, err := wgtypes.ParseKey(cfg.PrivateKey); err != nil {
+		return fmt.Errorf("wg: private key: %w", err)
+	}
+	if _, err := wgtypes.ParseKey(cfg.PeerPublicKey); err != nil {
+		return fmt.Errorf("wg: peer public key: %w", err)
+	}
+	if strings.TrimSpace(cfg.PresharedKey) != "" {
+		if _, err := wgtypes.ParseKey(cfg.PresharedKey); err != nil {
+			return fmt.Errorf("wg: preshared key: %w", err)
+		}
+	}
+	if _, err := net.ResolveUDPAddr("udp", cfg.PeerEndpoint); err != nil {
+		return fmt.Errorf("wg: peer endpoint %q: %w", cfg.PeerEndpoint, err)
 	}
 	return nil
+}
+
+func isLinkNotFound(err error) bool {
+	var notFound netlink.LinkNotFoundError
+	return errors.As(err, &notFound)
 }
 
 func configureDevice(cfg Config) error {

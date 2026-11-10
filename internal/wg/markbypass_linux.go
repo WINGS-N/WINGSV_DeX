@@ -4,6 +4,7 @@ package wg
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/vishvananda/netlink"
 )
@@ -21,13 +22,16 @@ import (
 // this table - there the tunnel's default lives in its own table and unmarked traffic is
 // what gets diverted, so marked traffic reaches the physical link through main.
 const (
-	BypassTable        = 8889
-	bypassRulePriority = 100
+	BypassTable         = 8889
+	bypassRulePriority  = 100
+	bypassRouteProtocol = 99
 )
 
 // MarkBypass is the installed table + rule pair.
 type MarkBypass struct {
-	fwmark int
+	fwmark    int
+	route     netlink.Route
+	ruleOwned bool
 }
 
 // PhysicalDefaultRoute returns the gateway and link of the main-table IPv4 default route,
@@ -62,22 +66,29 @@ func SetupMarkBypass(fwmark int, physical *netlink.Route) (*MarkBypass, error) {
 	if fwmark == 0 || physical == nil {
 		return nil, fmt.Errorf("wg: mark bypass needs a mark and a physical route")
 	}
-	m := &MarkBypass{fwmark: fwmark}
-	// Replace rather than add: a previous session that died without teardown would
-	// otherwise leave a stale default here and every bypassed dial would follow it.
-	if err := netlink.RouteReplace(&netlink.Route{
+	routes, err := netlink.RouteListFiltered(netlink.FAMILY_V4, &netlink.Route{Table: BypassTable}, netlink.RT_FILTER_TABLE)
+	if err != nil {
+		return nil, fmt.Errorf("wg: list bypass routes: %w", err)
+	}
+	if len(routes) != 0 {
+		return nil, fmt.Errorf("wg: bypass table %d is occupied", BypassTable)
+	}
+	route := netlink.Route{
 		Gw:        physical.Gw,
 		LinkIndex: physical.LinkIndex,
 		Table:     BypassTable,
-	}); err != nil {
+		Protocol:  netlink.RouteProtocol(bypassRouteProtocol),
+	}
+	if err := netlink.RouteAdd(&route); err != nil {
 		return nil, fmt.Errorf("wg: bypass default route: %w", err)
 	}
+	m := &MarkBypass{fwmark: fwmark, route: route}
 	rule := m.rule()
-	_ = netlink.RuleDel(rule)
 	if err := netlink.RuleAdd(rule); err != nil {
-		_ = flushBypassTable()
+		_ = m.deleteOwnedRoute()
 		return nil, fmt.Errorf("wg: bypass fwmark rule: %w", err)
 	}
+	m.ruleOwned = true
 	return m, nil
 }
 
@@ -90,22 +101,70 @@ func (m *MarkBypass) rule() *netlink.Rule {
 	return r
 }
 
-// Close removes the rule and empties the table.
+// Close removes only the rule and route installed by this instance.
 func (m *MarkBypass) Close() error {
 	if m == nil {
 		return nil
 	}
-	_ = netlink.RuleDel(m.rule())
-	return flushBypassTable()
+	if m.ruleOwned {
+		_ = netlink.RuleDel(m.rule())
+		m.ruleOwned = false
+	}
+	return m.deleteOwnedRoute()
 }
 
-func flushBypassTable() error {
+func (m *MarkBypass) deleteOwnedRoute() error {
 	routes, err := netlink.RouteListFiltered(netlink.FAMILY_V4, &netlink.Route{Table: BypassTable}, netlink.RT_FILTER_TABLE)
 	if err != nil {
 		return err
 	}
 	for i := range routes {
-		_ = netlink.RouteDel(&routes[i])
+		if sameRoute(routes[i], m.route) {
+			return netlink.RouteDel(&routes[i])
+		}
 	}
 	return nil
+}
+
+func sameRoute(a, b netlink.Route) bool {
+	return a.Table == b.Table && a.LinkIndex == b.LinkIndex &&
+		a.Protocol == b.Protocol && a.Priority == b.Priority &&
+		equalIP(a.Gw, b.Gw) && equalIPNet(a.Dst, b.Dst)
+}
+
+func equalIP(a, b net.IP) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Equal(b)
+}
+
+func equalIPNet(a, b *net.IPNet) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		if a == nil {
+			return isIPv4Default(b)
+		}
+		return isIPv4Default(a)
+	}
+	return a.IP.Equal(b.IP) && reflectIPMaskEqual(a.Mask, b.Mask)
+}
+
+func isIPv4Default(dst *net.IPNet) bool {
+	return dst != nil && dst.IP.To4() != nil && dst.IP.To4().IsUnspecified() &&
+		dst.Mask.String() == net.CIDRMask(0, 32).String()
+}
+
+func reflectIPMaskEqual(a, b net.IPMask) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

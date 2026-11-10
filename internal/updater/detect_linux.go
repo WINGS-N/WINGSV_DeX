@@ -5,9 +5,14 @@ package updater
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
 func detectKind(exe string) Kind {
+	if strings.HasPrefix(filepath.Clean(exe), "/nix/store/") {
+		return KindNix
+	}
 	if os.Getenv("APPIMAGE") != "" {
 		return KindAppImage
 	}

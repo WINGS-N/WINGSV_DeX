@@ -18,19 +18,29 @@ import (
 type AppMatcher struct {
 	cg    *CgroupMark
 	execs map[string]bool
+	uid   *uint32
 	stop  chan struct{}
 	done  chan struct{}
 }
 
 // StartAppMatcher begins polling and adding matching processes to cg.
 func StartAppMatcher(cg *CgroupMark, execs []string) *AppMatcher {
+	return startAppMatcher(cg, execs, nil)
+}
+
+// StartAppMatcherForUID begins polling and adding matching processes owned by uid to cg.
+func StartAppMatcherForUID(cg *CgroupMark, execs []string, uid uint32) *AppMatcher {
+	return startAppMatcher(cg, execs, &uid)
+}
+
+func startAppMatcher(cg *CgroupMark, execs []string, uid *uint32) *AppMatcher {
 	set := make(map[string]bool, len(execs))
 	for _, e := range execs {
 		if e = strings.TrimSpace(e); e != "" {
 			set[e] = true
 		}
 	}
-	m := &AppMatcher{cg: cg, execs: set, stop: make(chan struct{}), done: make(chan struct{})}
+	m := &AppMatcher{cg: cg, execs: set, uid: uid, stop: make(chan struct{}), done: make(chan struct{})}
 	go m.loop()
 	return m
 }
@@ -72,7 +82,16 @@ func (m *AppMatcher) scan() {
 }
 
 func (m *AppMatcher) matches(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
 	dir := "/proc/" + strconv.Itoa(pid)
+	if m.uid != nil {
+		uid, err := processUID(dir + "/status")
+		if err != nil || uid != *m.uid {
+			return false
+		}
+	}
 	if target, err := os.Readlink(dir + "/exe"); err == nil {
 		if m.execs[filepath.Base(target)] {
 			return true
@@ -85,6 +104,28 @@ func (m *AppMatcher) matches(pid int) bool {
 		}
 	}
 	return false
+}
+
+func processUID(statusPath string) (uint32, error) {
+	b, err := os.ReadFile(statusPath)
+	if err != nil {
+		return 0, err
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if !strings.HasPrefix(line, "Uid:") {
+			continue
+		}
+		fields := strings.Fields(strings.TrimPrefix(line, "Uid:"))
+		if len(fields) == 0 {
+			break
+		}
+		uid, err := strconv.ParseUint(fields[0], 10, 32)
+		if err != nil {
+			return 0, err
+		}
+		return uint32(uid), nil
+	}
+	return 0, os.ErrNotExist
 }
 
 // Stop ends polling and waits for the loop to exit.

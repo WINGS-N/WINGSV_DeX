@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -71,6 +72,13 @@ func removeEnv(env []string, key string) []string {
 // startHelper launches the net-helper via pkexec (which prompts the user to authorize)
 // and talks to it over the child's stdin/stdout.
 func startHelper(exePath string, logw io.Writer) (*helper, error) {
+	if socket := os.Getenv("WINGSV_NET_HELPER_SOCKET"); socket != "" {
+		conn, err := net.Dial("unix", socket)
+		if err != nil {
+			return nil, fmt.Errorf("dataplane: configured net-helper socket %s unavailable: %w", socket, err)
+		}
+		return &helper{enc: json.NewEncoder(conn), dec: json.NewDecoder(bufio.NewReader(conn)), stop: func() { _ = conn.Close() }}, nil
+	}
 	pkexecPath, err := exec.LookPath("pkexec")
 	if err != nil {
 		return nil, fmt.Errorf("dataplane: find pkexec: %w", err)
