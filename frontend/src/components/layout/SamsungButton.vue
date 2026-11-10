@@ -27,11 +27,11 @@ const props = defineProps({
   label: { type: String, default: '' },
   busy: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
-  /** native button type — submit / button / reset */
+  /** native button type - submit / button / reset */
   type: { type: String, default: 'button' },
-  /** if set — render as <router-link to=...> */
+  /** if set - render as <router-link to=...> */
   to: { type: [String, Object], default: undefined },
-  /** if set — render as <a href=...> */
+  /** if set - render as <a href=...> */
   href: { type: String, default: undefined },
 });
 const emit = defineEmits(['click']);

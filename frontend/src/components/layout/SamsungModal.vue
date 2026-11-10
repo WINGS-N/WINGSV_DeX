@@ -16,7 +16,7 @@
 const props = defineProps({
   modelValue: { type: Boolean, required: true },
   title: { type: String, default: '' },
-  /** When true, click on the backdrop does NOT close the modal — useful while
+  /** When true, click on the backdrop does NOT close the modal - useful while
    *  a long-running action (deletion / apply) is in flight. */
   busy: { type: Boolean, default: false },
 });

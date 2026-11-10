@@ -8,7 +8,7 @@
 import { computed } from 'vue';
 
 const props = defineProps({
-  /** online | offline | info | neutral — maps to .admin-pill .is-* */
+  /** online | offline | info | neutral - maps to .admin-pill .is-* */
   variant: { type: String, default: 'neutral' },
 });
 

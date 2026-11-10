@@ -1,10 +1,10 @@
 <template>
   <!--
-    variant="default" — обычный radio-набор (Samsung circle + label).
-    variant="pill"    — admin-pill-button row: тапаемые pill-кнопки c
+    variant="default" - обычный radio-набор (Samsung circle + label).
+    variant="pill"    - admin-pill-button row: тапаемые pill-кнопки c
                         опциональными иконкой и count-бейджем.
     Один и тот же data-shape options=[{value,label,icon?,count?,disabled?}],
-    разные обёртки — чтобы не плодить два компонента под "выбери один".
+    разные обёртки - чтобы не плодить два компонента под "выбери один".
   -->
   <div v-if="variant === 'pill'" class="admin-pill-row">
     <button
@@ -43,7 +43,7 @@ const props = defineProps({
   options: { type: Array, required: true },
   name: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
-  /** "default" | "pill" — visual style; same options shape. */
+  /** "default" | "pill" - visual style; same options shape. */
   variant: { type: String, default: 'default' },
 });
 const emit = defineEmits(['update:modelValue', 'change']);

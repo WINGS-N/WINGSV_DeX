@@ -13,7 +13,10 @@
     </header>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-8">
-      <SamsungCard kicker="Пул" subtitle="Ссылки на VK-звонки; из них реле добывает TURN-креды. Первая — основная.">
+      <SamsungCard
+        kicker="Пул"
+        subtitle="Ссылки на VK-звонки; из них реле добывает TURN-креды. Первая &mdash; основная."
+      >
         <ul v-if="client.vkLinks.length" class="space-y-1.5 py-3">
           <li
             v-for="(l, i) in client.vkLinks"
