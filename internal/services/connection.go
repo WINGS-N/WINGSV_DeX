@@ -545,16 +545,11 @@ func endpointPort(endpoint string) int {
 	return n
 }
 
-// machineHWID returns a stable per-machine id for provisioning (a stable per-machine id like
-// ANDROID_ID), from /etc/machine-id with the hostname as a fallback.
+// machineHWID returns the stable per-machine id used when provisioning a managed profile. It
+// is the same fingerprint the subscription refresh sends, so the panel and the node see one
+// device, not two.
 func machineHWID() string {
-	if b, err := os.ReadFile("/etc/machine-id"); err == nil {
-		if id := strings.TrimSpace(string(b)); id != "" {
-			return id
-		}
-	}
-	host, _ := os.Hostname()
-	return strings.TrimSpace(host)
+	return config.DeviceFingerprint().HWID
 }
 
 // ApplyAppRouting re-applies the current per-app split-tunnel settings to the live
