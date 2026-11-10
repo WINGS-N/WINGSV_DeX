@@ -329,6 +329,88 @@ func (s *AccountService) OpenPanelSection(path string) error {
 	return openURL(strings.TrimRight(base, "/") + path)
 }
 
+// ChangeAvatar opens a native image picker, uploads the chosen file as the account avatar and
+// refreshes the stored avatar version so the UI busts its cache. An empty return with no error
+// means the user cancelled the picker.
+func (s *AccountService) ChangeAvatar() error {
+	s.mu.Lock()
+	token := s.st.Token
+	client := s.client()
+	app := s.app
+	s.mu.Unlock()
+	if token == "" {
+		return errors.New("not signed in")
+	}
+	if app == nil {
+		return errors.New("no window")
+	}
+	path, err := app.Dialog.OpenFile().
+		SetTitle("Сменить аватар").
+		AddFilter("Изображения", "*.png;*.jpg;*.jpeg;*.webp").
+		PromptForSingleSelection()
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(path) == "" {
+		return nil // cancelled
+	}
+	image, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	// The panel caps avatars at 2 MB; reject early with the app's wording rather than on a
+	// server error.
+	if len(image) > 2*1024*1024 {
+		return errors.New("Картинка больше 2 MB")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	version, err := client.UploadAvatar(ctx, token, image, avatarMIME(path))
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.st.AvatarVersion = version
+	s.saveLocked()
+	s.emit()
+	s.mu.Unlock()
+	return nil
+}
+
+// RemoveAvatar drops the account avatar back to the panel placeholder.
+func (s *AccountService) RemoveAvatar() error {
+	s.mu.Lock()
+	token := s.st.Token
+	client := s.client()
+	s.mu.Unlock()
+	if token == "" {
+		return errors.New("not signed in")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := client.RemoveAvatar(ctx, token); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.st.AvatarVersion = 0
+	s.saveLocked()
+	s.emit()
+	s.mu.Unlock()
+	return nil
+}
+
+// avatarMIME guesses the image content type from the file extension, defaulting to PNG.
+func avatarMIME(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "image/png"
+	}
+}
+
 // ChangePassword updates the account password.
 func (s *AccountService) ChangePassword(current, next string) error {
 	s.mu.Lock()
