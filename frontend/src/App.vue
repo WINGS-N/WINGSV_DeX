@@ -14,6 +14,7 @@
     <FederationSubscriptionView v-else-if="overlay === 'account-subscription'" />
     <FederationInvitesView v-else-if="overlay === 'account-invites'" />
     <FederationDonorView v-else-if="overlay === 'account-donor'" />
+    <FederationAvatarView v-else-if="overlay === 'account-avatar'" />
 
     <template v-else>
       <main class="min-h-0 flex-1 overflow-y-auto">
@@ -70,6 +71,7 @@ import AccountProfileView from '@/views/AccountProfileView.vue';
 import FederationSubscriptionView from '@/views/FederationSubscriptionView.vue';
 import FederationInvitesView from '@/views/FederationInvitesView.vue';
 import FederationDonorView from '@/views/FederationDonorView.vue';
+import FederationAvatarView from '@/views/FederationAvatarView.vue';
 import ConfirmDialog from '@/components/layout/ConfirmDialog.vue';
 import ToastHost from '@/components/layout/ToastHost.vue';
 import FirstLaunchView from '@/views/firstlaunch/FirstLaunchView.vue';

@@ -32,7 +32,12 @@
       <div v-else class="flex flex-col gap-4">
         <div class="flex items-center justify-between">
           <span class="font-sharp text-[34px] font-bold lowercase text-white">{{ status.username }}</span>
-          <img v-if="status.avatarUrl" :src="status.avatarUrl" alt="" class="h-16 w-16 rounded-full object-cover" />
+          <button type="button" class="shrink-0" aria-label="Аватар" @click="openOverlay('account-avatar')">
+            <img v-if="status.avatarUrl" :src="status.avatarUrl" alt="" class="h-16 w-16 rounded-full object-cover" />
+            <span v-else class="flex h-16 w-16 items-center justify-center rounded-full bg-wings-surface">
+              <UserRound :size="28" class="text-wings-mutedStrong" />
+            </span>
+          </button>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
@@ -115,7 +120,18 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { ChevronLeft, User, CalendarCheck, Users, Wifi, Smartphone, LogOut, ArrowDown, ArrowUp } from '@lucide/vue';
+import {
+  ChevronLeft,
+  User,
+  UserRound,
+  CalendarCheck,
+  Users,
+  Wifi,
+  Smartphone,
+  LogOut,
+  ArrowDown,
+  ArrowUp,
+} from '@lucide/vue';
 import { Events } from '@wailsio/runtime';
 import { AccountService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
