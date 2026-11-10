@@ -94,6 +94,7 @@ func main() {
 	byedpiStrategySvc := services.NewByeDpiStrategyService(store, exePath)
 	autoSearchSvc := services.NewAutoSearchService(store, exePath, subscriptionSvc)
 	deepLinkSvc := services.NewDeepLinkService()
+	accountSvc := services.NewAccountService(configDir, store)
 
 	// Register wingsv:// and vless:// with the OS (no-op off Windows; Linux uses the
 	// installed .desktop MimeType). A cold launch from a scheme link arrives in os.Args.
@@ -124,6 +125,7 @@ func main() {
 			application.NewService(services.NewMusicService()),
 			application.NewService(services.NewAvatarService(configDir)),
 			application.NewService(deepLinkSvc),
+			application.NewService(accountSvc),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -163,6 +165,8 @@ func main() {
 	byedpiStrategySvc.SetApp(app)
 	autoSearchSvc.SetApp(app)
 	deepLinkSvc.SetApp(app)
+	accountSvc.SetApp(app)
+	go accountSvc.Restore()
 	logStore.SetListener(func(channel, line string) {
 		app.Event.Emit(services.LogLineEvent, services.LogLine{Channel: channel, Line: line})
 	})
@@ -177,7 +181,11 @@ func main() {
 	})
 
 	deliver = func(link string) {
-		deepLinkSvc.Deliver(link)
+		// A panel browser-approval callback signs the account in; anything else is a
+		// profile-import link for the frontend.
+		if !accountSvc.MatchBrowserCallback(link) {
+			deepLinkSvc.Deliver(link)
+		}
 		ctrl.Show()
 	}
 	if autostart {
@@ -188,7 +196,9 @@ func main() {
 
 	// Cold launch from a scheme link: hold it for the frontend to pull once it mounts.
 	if link := deeplink.ExtractSchemeLink(os.Args[1:]); link != "" {
-		deepLinkSvc.SetPending(link)
+		if !accountSvc.MatchBrowserCallback(link) {
+			deepLinkSvc.SetPending(link)
+		}
 	}
 
 	// Loopback callback channel (http://127.0.0.1:PORT/callback?url=...). A bind failure
