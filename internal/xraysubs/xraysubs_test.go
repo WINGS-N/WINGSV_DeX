@@ -24,7 +24,7 @@ func TestFetchRejectsBadResponsesWithoutLeakingURL(t *testing.T) {
 				_, _ = w.Write([]byte(tc.body))
 			}))
 			defer srv.Close()
-			_, err := Fetch(t.Context(), config.Subscription{URL: srv.URL + "/token-secret"})
+			_, err := Fetch(t.Context(), config.Subscription{URL: srv.URL + "/token-secret"}, config.DeviceInfo{})
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("Fetch error = %v, want %q", err, tc.want)
 			}
@@ -57,7 +57,7 @@ func TestFetchCookieChallengeRedirect(t *testing.T) {
 		_, _ = w.Write([]byte(body))
 	}))
 	defer srv.Close()
-	got, err := Fetch(t.Context(), config.Subscription{URL: srv.URL + "/start"})
+	got, err := Fetch(t.Context(), config.Subscription{URL: srv.URL + "/start"}, config.DeviceInfo{})
 	if err != nil || len(got.Nodes) != 23 {
 		t.Fatalf("Fetch = (%d nodes, %v)", len(got.Nodes), err)
 	}
@@ -84,7 +84,7 @@ func TestFetchUsesConfiguredHTTPProxyAndDoesNotFallBack(t *testing.T) {
 		_, _ = w.Write([]byte("vless://id@node.example:443"))
 	}))
 	defer origin.Close()
-	got, err := Fetch(t.Context(), config.Subscription{URL: origin.URL, ProxyURL: proxyURL})
+	got, err := Fetch(t.Context(), config.Subscription{URL: origin.URL, ProxyURL: proxyURL}, config.DeviceInfo{})
 	if err == nil || len(got.Nodes) != 0 {
 		t.Fatalf("Fetch = (%d nodes, %v), want proxy failure", len(got.Nodes), err)
 	}
@@ -102,7 +102,7 @@ func TestFetchFailsOverToMirror(t *testing.T) {
 		_, _ = w.Write([]byte("vless://uuid@node.example:443#Node"))
 	}))
 	defer mirror.Close()
-	got, err := Fetch(t.Context(), config.Subscription{URL: primary.URL, MirrorURLs: []string{mirror.URL}})
+	got, err := Fetch(t.Context(), config.Subscription{URL: primary.URL, MirrorURLs: []string{mirror.URL}}, config.DeviceInfo{})
 	if err != nil || len(got.Nodes) != 1 {
 		t.Fatalf("Fetch = (%d nodes, %v)", len(got.Nodes), err)
 	}

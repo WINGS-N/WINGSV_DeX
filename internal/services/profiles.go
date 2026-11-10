@@ -214,7 +214,7 @@ func (s *ProfilesService) importSubscription(rawURL string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
-	res, err := xraysubs.Fetch(ctx, sub)
+	res, err := xraysubs.Fetch(ctx, sub, s.store.HwidForSubscription(sub.ID))
 	if err != nil {
 		return err
 	}

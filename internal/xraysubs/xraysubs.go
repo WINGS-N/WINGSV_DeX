@@ -45,7 +45,7 @@ type Result struct {
 // an idle connection pinned to the physical link.
 // Fetch обходит адреса подписки по порядку и отдаёт первый ответивший. Ошибка
 // возвращается только когда не ответил ни один, и тогда она несёт причины всех.
-func Fetch(ctx context.Context, sub config.Subscription) (Result, error) {
+func Fetch(ctx context.Context, sub config.Subscription, hwid config.DeviceInfo) (Result, error) {
 	urls := sub.AllURLs()
 	if len(urls) == 0 {
 		return Result{}, errors.New("subscription has no url")
@@ -67,7 +67,7 @@ func Fetch(ctx context.Context, sub config.Subscription) (Result, error) {
 	client := &http.Client{Timeout: 30 * time.Second, Transport: transport, Jar: jar}
 	var failures []error
 	for i, candidate := range urls {
-		res, err := fetchFrom(ctx, sub, candidate, client)
+		res, err := fetchFrom(ctx, sub, candidate, client, hwid)
 		if err == nil {
 			return res, nil
 		}
@@ -76,12 +76,30 @@ func Fetch(ctx context.Context, sub config.Subscription) (Result, error) {
 	return Result{}, errors.Join(failures...)
 }
 
-func fetchFrom(ctx context.Context, sub config.Subscription, rawURL string, client *http.Client) (Result, error) {
+func fetchFrom(ctx context.Context, sub config.Subscription, rawURL string, client *http.Client, hwid config.DeviceInfo) (Result, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSpace(rawURL), nil)
 	if err != nil {
 		return Result{}, errors.New("invalid subscription URL")
 	}
 	req.Header.Set("User-Agent", "WINGSV-DeX")
+	// A custom Accept keeps the panel from serving an HTML page on the default text/html the
+	// stdlib would otherwise send.
+	req.Header.Set("Accept", "application/x-wingsv-config, text/plain, */*")
+	// The caller resolved the device fingerprint for this subscription (empty when the user
+	// turned sending off, forced to the real one for the federation link). The panel counts
+	// device slots from these headers, and the federation link returns 403 without them.
+	if hwid.HWID != "" {
+		req.Header.Set("x-hwid", hwid.HWID)
+	}
+	if hwid.OS != "" {
+		req.Header.Set("x-device-os", hwid.OS)
+	}
+	if hwid.OSVersion != "" {
+		req.Header.Set("x-ver-os", hwid.OSVersion)
+	}
+	if hwid.Model != "" {
+		req.Header.Set("x-device-model", hwid.Model)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return Result{}, errors.New("subscription request failed")

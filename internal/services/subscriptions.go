@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +31,44 @@ func NewSubscriptionService(store *config.Store) *SubscriptionService {
 }
 
 // SetApp attaches the app so background refreshes can push events to the frontend.
+// HwidView is the device-fingerprint settings plus the live automatic values, so the UI can
+// show what would be sent next to each editable field.
+type HwidView struct {
+	Enabled         bool   `json:"enabled"`
+	Manual          bool   `json:"manual"`
+	HWID            string `json:"hwid"`
+	DeviceOS        string `json:"deviceOs"`
+	VerOS           string `json:"verOs"`
+	DeviceModel     string `json:"deviceModel"`
+	AutoHWID        string `json:"autoHwid"`
+	AutoDeviceOS    string `json:"autoDeviceOs"`
+	AutoVerOS       string `json:"autoVerOs"`
+	AutoDeviceModel string `json:"autoDeviceModel"`
+}
+
+// HwidSettings returns the current device-fingerprint settings and the automatic values.
+func (s *SubscriptionService) HwidSettings() HwidView {
+	v := s.store.SubscriptionHwidSettings()
+	a := config.DeviceFingerprint()
+	return HwidView{
+		Enabled: v.Enabled, Manual: v.Manual,
+		HWID: v.HWID, DeviceOS: v.DeviceOS, VerOS: v.VerOS, DeviceModel: v.DeviceModel,
+		AutoHWID: a.HWID, AutoDeviceOS: a.OS, AutoVerOS: a.OSVersion, AutoDeviceModel: a.Model,
+	}
+}
+
+// SetHwidSettings persists the device-fingerprint settings.
+func (s *SubscriptionService) SetHwidSettings(enabled, manual bool, hwid, deviceOs, verOs, deviceModel string) error {
+	return s.store.SetSubscriptionHwidSettings(config.SubscriptionHwidSettings{
+		Enabled:     enabled,
+		Manual:      manual,
+		HWID:        strings.TrimSpace(hwid),
+		DeviceOS:    strings.TrimSpace(deviceOs),
+		VerOS:       strings.TrimSpace(verOs),
+		DeviceModel: strings.TrimSpace(deviceModel),
+	})
+}
+
 func (s *SubscriptionService) SetApp(app *application.App) { s.app = app }
 
 // SubscriptionRefresh is returned after a refresh so the UI can show what changed.
@@ -158,7 +197,7 @@ func (s *SubscriptionService) RefreshAll() SubscriptionRefresh {
 func (s *SubscriptionService) refresh(sub config.Subscription) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
-	res, err := xraysubs.Fetch(ctx, sub)
+	res, err := xraysubs.Fetch(ctx, sub, s.store.HwidForSubscription(sub.ID))
 	if err != nil {
 		return 0, err
 	}
