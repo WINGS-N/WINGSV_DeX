@@ -42,16 +42,22 @@ func RunServer(path string, allowedUID uint32) error {
 	}
 	l := net.Listener(listener)
 	listener.SetUnlinkOnClose(false)
+	// Until serve() takes over teardown, fail closed: drop the listener and remove the socket
+	// file so a Chmod/Chown error cannot leak the fd or leave a world-reachable socket behind.
+	fail := func(e error) error {
+		_ = l.Close()
+		_ = os.Remove(path)
+		return e
+	}
 	created, err := os.Lstat(path)
 	if err != nil {
-		_ = l.Close()
-		return err
+		return fail(err)
 	}
 	if err = os.Chmod(path, 0600); err != nil {
-		return err
+		return fail(err)
 	}
 	if err = os.Chown(path, int(allowedUID), -1); err != nil {
-		return err
+		return fail(err)
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
