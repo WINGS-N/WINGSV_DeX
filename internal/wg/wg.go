@@ -207,7 +207,7 @@ func Down(cfg Config) error {
 		}
 		return fmt.Errorf("wg: lookup interface %s: %w", cfg.Interface, err)
 	}
-	if !ownedLink(link, cfg.Amnezia) {
+	if !reclaimableLink(link, cfg) {
 		return fmt.Errorf("wg: refusing to remove non-owned interface %s", cfg.Interface)
 	}
 	removeRules(cfg)
@@ -223,6 +223,25 @@ func ownedLink(link netlink.Link, awg bool) bool {
 		return false
 	}
 	if awg {
+		generic, ok := link.(*netlink.GenericLink)
+		return ok && generic.LinkType == "amneziawg"
+	}
+	_, ok := link.(*netlink.Wireguard)
+	return ok
+}
+
+// reclaimableLink reports whether link may be removed as ours. It is ours when it carries
+// our alias, or when it is a stale leftover: our interface name and the expected wireguard
+// or amneziawg type but no alias at all, as a pre-alias build or a crash before the alias
+// was set would leave behind. A link bearing a different alias is never ours.
+func reclaimableLink(link netlink.Link, cfg Config) bool {
+	if ownedLink(link, cfg.Amnezia) {
+		return true
+	}
+	if link == nil || link.Attrs() == nil || link.Attrs().Alias != "" || link.Attrs().Name != cfg.Interface {
+		return false
+	}
+	if cfg.Amnezia {
 		generic, ok := link.(*netlink.GenericLink)
 		return ok && generic.LinkType == "amneziawg"
 	}
@@ -250,7 +269,7 @@ func prepareReplacement(cfg Config) error {
 		}
 		return fmt.Errorf("wg: lookup interface %s: %w", cfg.Interface, err)
 	}
-	if !ownedLink(link, cfg.Amnezia) {
+	if !reclaimableLink(link, cfg) {
 		return fmt.Errorf("wg: interface %s already exists and is not owned", cfg.Interface)
 	}
 	return Down(cfg)
