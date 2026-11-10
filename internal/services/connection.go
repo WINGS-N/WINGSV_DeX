@@ -454,6 +454,11 @@ type AWGAvailability struct {
 
 // AWGAvailability checks for the amneziawg tool and kernel module.
 func (s *ConnectionService) AWGAvailability() AWGAvailability {
+	// Outside Linux the data plane runs the bundled userspace amneziawg-go, so there is
+	// nothing to install; the Linux path still needs the awg tool and the kernel module.
+	if runtime.GOOS != "linux" {
+		return AWGAvailability{Available: true}
+	}
 	var missing []string
 	if _, err := exec.LookPath("awg"); err != nil {
 		missing = append(missing, "amneziawg-tools")
@@ -482,6 +487,10 @@ func (s *ConnectionService) applyAWG(cfg *dataplane.WGConfig, p config.Profile) 
 	cfg.Jc, cfg.Jmin, cfg.Jmax = p.WG.Jc, p.WG.Jmin, p.WG.Jmax
 	cfg.S1, cfg.S2, cfg.S3, cfg.S4 = p.WG.S1, p.WG.S2, p.WG.S3, p.WG.S4
 	cfg.H1, cfg.H2, cfg.H3, cfg.H4 = p.WG.H1, p.WG.H2, p.WG.H3, p.WG.H4
+	cfg.I1, cfg.I2, cfg.I3, cfg.I4, cfg.I5 = p.WG.I1, p.WG.I2, p.WG.I3, p.WG.I4, p.WG.I5
+	cfg.HeaderProtectionKey = p.WG.HeaderProtectionKey
+	cfg.ContentPaddingAddition = p.WG.ContentPaddingAddition
+	cfg.RekeyAfterTime = p.WG.RekeyAfterTime
 }
 
 func splitCSV(s string) []string {
