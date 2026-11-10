@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -46,12 +47,12 @@ type ReceiptEngine struct {
 	key     *receiptKey
 	account func() (ReceiptAccount, bool)
 	door    NodeDoorRoute
-	keySent bool
 
-	mu      sync.Mutex
-	flushMu sync.Mutex
-	log     func(string)
-	lastS   string
+	mu       sync.Mutex
+	flushMu  sync.Mutex
+	log      func(string)
+	lastS    string
+	clientIP atomic.Pointer[string]
 }
 
 // NewReceiptEngine builds an engine persisting its state (signing key, window mark, queue,
@@ -74,6 +75,19 @@ func (e *ReceiptEngine) SetAccount(account func() (ReceiptAccount, bool)) {
 	e.mu.Lock()
 	e.account = account
 	e.mu.Unlock()
+}
+
+// SetClientIP records the device's own public address, measured off the tunnel, to send with
+// receipts so the panel can cross-check it against what the node reports. Empty clears it.
+func (e *ReceiptEngine) SetClientIP(ip string) {
+	e.clientIP.Store(&ip)
+}
+
+func (e *ReceiptEngine) clientIPValue() string {
+	if p := e.clientIP.Load(); p != nil {
+		return *p
+	}
+	return ""
 }
 
 // currentAccount reads the provider, tolerating an unset one.
@@ -177,7 +191,8 @@ func (e *ReceiptEngine) Reset() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.key.forget()
-	e.keySent = false
+	e.SetClientIP("")
+	_ = os.Remove(filepath.Join(e.dir, "key.sent"))
 	_ = os.Remove(filepath.Join(e.dir, "mark.json"))
 	_ = os.Remove(filepath.Join(e.dir, "queue.json"))
 	_ = os.Remove(filepath.Join(e.dir, "off"))
@@ -229,6 +244,18 @@ func newNonce() string {
 	return hex.EncodeToString(raw)
 }
 
+// keySent reports whether the signing public key has already been registered with the panel.
+// Persisted so a restart does not re-send it; re-sending is idempotent server-side anyway, so
+// a lost flag costs only one extra request.
+func (e *ReceiptEngine) keySent() bool {
+	_, err := os.Stat(filepath.Join(e.dir, "key.sent"))
+	return err == nil
+}
+
+func (e *ReceiptEngine) markKeySent() {
+	_ = os.WriteFile(filepath.Join(e.dir, "key.sent"), []byte("1"), 0o600)
+}
+
 // errPanelUnreachable marks a panel send that failed outright, so Flush falls back to the
 // node door rather than treating the queue as delivered.
 var errPanelUnreachable = errors.New("panel unreachable")
@@ -237,7 +264,7 @@ var errPanelUnreachable = errors.New("panel unreachable")
 func (e *ReceiptEngine) sendViaPanel(acc ReceiptAccount, queue []Receipt) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	if !e.keySent {
+	if !e.keySent() {
 		pub, err := e.key.publicKey()
 		if err != nil {
 			return 0, err
@@ -245,9 +272,9 @@ func (e *ReceiptEngine) sendViaPanel(acc ReceiptAccount, queue []Receipt) (int, 
 		if err := acc.Client.SendKey(ctx, acc.Token, pub); err != nil {
 			return 0, errPanelUnreachable
 		}
-		e.keySent = true
+		e.markKeySent()
 	}
-	accepted, err := acc.Client.SendReceipts(ctx, acc.Token, queue, "")
+	accepted, err := acc.Client.SendReceipts(ctx, acc.Token, queue, e.clientIPValue())
 	if err != nil {
 		return 0, errPanelUnreachable
 	}

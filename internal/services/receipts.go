@@ -181,6 +181,35 @@ func (s *ConnectionService) startVKTurnReceipts(ctx context.Context, nodeID stri
 	}()
 }
 
+// primeSelfAddress measures the device's public address OFF the tunnel and hands it to the
+// receipt engine. It MUST be called before the tunnel is up: once routing points at the
+// tunnel the probe would return the node's address instead of ours. The result is cached for
+// a few minutes so back-to-back connects do not re-probe. Best effort: on a miss the engine
+// sends receipts without a client_ip and the panel skips the cross-check.
+func (s *ConnectionService) primeSelfAddress() {
+	if s.receiptEngine == nil {
+		return
+	}
+	s.mu.Lock()
+	cached, at := s.selfAddr, s.selfAddrAt
+	s.mu.Unlock()
+	if cached != "" && time.Since(at) < 5*time.Minute {
+		s.receiptEngine.SetClientIP(cached)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	addr := federation.ResolveSelfAddress(ctx)
+	if addr == "" {
+		return
+	}
+	s.mu.Lock()
+	s.selfAddr = addr
+	s.selfAddrAt = time.Now()
+	s.mu.Unlock()
+	s.receiptEngine.SetClientIP(addr)
+}
+
 // isFederationXray reports whether an xray profile was handed out by the federation
 // subscription, the only profiles a receipt is signed for.
 func isFederationXray(p config.XrayProfile) bool {

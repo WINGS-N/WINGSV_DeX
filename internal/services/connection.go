@@ -146,6 +146,8 @@ type ConnectionService struct {
 	receiptRouting *ReceiptRouting
 	configDir      string
 	xrayStats      *federation.XrayStats
+	selfAddr       string
+	selfAddrAt     time.Time
 }
 
 // NewConnectionService wires the service to the store, the vkturn manager, the VK
@@ -268,6 +270,11 @@ func (s *ConnectionService) Connect() (ConnectionState, error) {
 	// before WGUp installs the routing rules.
 	appRouting := s.store.AppRouting()
 	wgCfg.Whitelist = appRouting.Mode == "whitelist"
+	// Federation donor node: measure our own public address now, while routing is still on
+	// the physical link - once the tunnel is up the probe would read the node's address.
+	if profile.Managed && client.RuntimeMode != "proxy" {
+		s.primeSelfAddress()
+	}
 	// VPN mode brings the kernel WireGuard interface + full-tunnel routing up. In
 	// proxy-only mode vkturn still runs and serves its local endpoint, but no tunnel
 	// is created and system traffic is left untouched (bring-your-own WireGuard, and
@@ -746,6 +753,10 @@ func (s *ConnectionService) connectXray() (ConnectionState, error) {
 				dp.Stop()
 				return s.fail(err)
 			}
+		}
+		// Federation profile: measure our own public address before the TUN takes over routing.
+		if statsTarget != "" {
+			s.primeSelfAddress()
 		}
 		if err := dp.XrayUp(bin, cfgJSON, xray.TunDeviceName, s.geoDir, settings.IPv6); err != nil {
 			s.runtimeLogf("xrayup failure: %v", err)
