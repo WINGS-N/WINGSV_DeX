@@ -1,0 +1,289 @@
+// Package federation is the client for the WINGS Account panel: it signs in against the
+// panel, restores a stored session, and reads the account's access state (allowance, speed
+// caps, trust and per-server usage). The panel speaks JSON over HTTPS with a bearer token.
+package federation
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// DefaultPanel is the panel used when the account has no custom one configured.
+const DefaultPanel = "https://v.wingsnet.org"
+
+// Session is what a successful sign-in yields: the bearer token plus the identity the panel
+// reports for the account.
+type Session struct {
+	Token         string `json:"token"`
+	Username      string `json:"username"`
+	AccountID     string `json:"accountId"`
+	AvatarVersion int64  `json:"avatarVersion"`
+	FederationID  string `json:"federationId"`
+}
+
+// ServerUsage is one federation server's traffic as the panel accounts it for this account.
+type ServerUsage struct {
+	Name      string `json:"name"`
+	Transport string `json:"transport"`
+	UpBytes   int64  `json:"upBytes"`
+	DownBytes int64  `json:"downBytes"`
+}
+
+// Access is the account's current standing: how much it may still pull, its speed caps, its
+// trust score and the per-server usage behind the totals.
+type Access struct {
+	SubscriptionURL string        `json:"subscriptionUrl"`
+	UsedBytes       int64         `json:"usedBytes"`
+	LimitBytes      int64         `json:"limitBytes"` // 0 means unlimited
+	UplinkBps       int64         `json:"uplinkBps"`
+	DownlinkBps     int64         `json:"downlinkBps"`
+	TrustConfidence int           `json:"trustConfidence"`
+	TrustBand       string        `json:"trustBand"`
+	AvatarVersion   int64         `json:"avatarVersion"`
+	Servers         []ServerUsage `json:"servers"`
+}
+
+// ErrSecondFactor is returned when the panel wants a second factor; Ticket carries the value
+// the follow-up call must present.
+type ErrSecondFactor struct{ Ticket string }
+
+func (e *ErrSecondFactor) Error() string { return "federation: second factor required" }
+
+// Client talks to one panel. The zero value is not usable; build it with New.
+type Client struct {
+	panel string
+	http  *http.Client
+}
+
+// New returns a client for panel (DefaultPanel when empty).
+func New(panel string) *Client {
+	panel = strings.TrimRight(strings.TrimSpace(panel), "/")
+	if panel == "" {
+		panel = DefaultPanel
+	}
+	return &Client{panel: panel, http: &http.Client{Timeout: 20 * time.Second}}
+}
+
+// Panel is the base URL this client signs in against.
+func (c *Client) Panel() string { return c.panel }
+
+// AvatarURL is where the panel serves an account's avatar; version busts the cache when the
+// avatar changes.
+func (c *Client) AvatarURL(accountID string, version int64) string {
+	if accountID == "" {
+		return ""
+	}
+	return c.panel + "/api/admin/avatars/" + accountID + ".png?v=" + strconv.FormatInt(version, 10)
+}
+
+// Login signs in with a username and password. A panel that demands a second factor returns
+// ErrSecondFactor instead of a session.
+func (c *Client) Login(ctx context.Context, login, password string) (Session, error) {
+	var resp struct {
+		Token   string `json:"token"`
+		Ticket  string `json:"ticket"`
+		Account struct {
+			ID            int64  `json:"id"`
+			Username      string `json:"username"`
+			AvatarVersion int64  `json:"avatar_version"`
+			FederationID  string `json:"federation_id"`
+		} `json:"account"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/api/app/account/login", "", map[string]string{
+		"login":    login,
+		"password": password,
+	}, &resp); err != nil {
+		return Session{}, err
+	}
+	if resp.Ticket != "" && resp.Token == "" {
+		return Session{}, &ErrSecondFactor{Ticket: resp.Ticket}
+	}
+	return sessionFrom(resp.Token, resp.Account.ID, resp.Account.Username, login, resp.Account.AvatarVersion, resp.Account.FederationID), nil
+}
+
+// Restore revalidates a stored token and returns a refreshed session.
+func (c *Client) Restore(ctx context.Context, token string) (Session, error) {
+	var resp sessionResp
+	if err := c.do(ctx, http.MethodPost, "/api/app/session", "", map[string]string{"token": token}, &resp); err != nil {
+		return Session{}, err
+	}
+	return resp.session(token, ""), nil
+}
+
+// Access reads the account's current access state with a bearer token.
+func (c *Client) Access(ctx context.Context, token string) (Access, error) {
+	var resp struct {
+		SubscriptionURL string `json:"subscription_url"`
+		UsedBytes       int64  `json:"used_bytes"`
+		LimitBytes      int64  `json:"limit_bytes"`
+		UplinkBps       int64  `json:"uplink_bps"`
+		DownlinkBps     int64  `json:"downlink_bps"`
+		AvatarVersion   int64  `json:"avatar_version"`
+		Trust           struct {
+			Confidence int    `json:"confidence"`
+			Band       string `json:"band"`
+		} `json:"trust"`
+		Servers []struct {
+			Name      string `json:"name"`
+			Transport string `json:"transport"`
+			UpBytes   int64  `json:"up_bytes"`
+			DownBytes int64  `json:"down_bytes"`
+		} `json:"servers"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/app/access", token, nil, &resp); err != nil {
+		return Access{}, err
+	}
+	out := Access{
+		SubscriptionURL: resp.SubscriptionURL,
+		UsedBytes:       resp.UsedBytes,
+		LimitBytes:      resp.LimitBytes,
+		UplinkBps:       resp.UplinkBps,
+		DownlinkBps:     resp.DownlinkBps,
+		TrustConfidence: resp.Trust.Confidence,
+		TrustBand:       resp.Trust.Band,
+		AvatarVersion:   resp.AvatarVersion,
+	}
+	for _, s := range resp.Servers {
+		out.Servers = append(out.Servers, ServerUsage{Name: s.Name, Transport: s.Transport, UpBytes: s.UpBytes, DownBytes: s.DownBytes})
+	}
+	return out, nil
+}
+
+// BrowserLoginURL is the panel page that links this device to an account: the user opens it in
+// a browser, approves the named device, and the panel hands back a one-time code. The device
+// label is shown on the consent screen so the user sees what is asking for access.
+func (c *Client) BrowserLoginURL(device string) string {
+	u, err := url.Parse(c.panel + "/app/link")
+	if err != nil {
+		return c.panel + "/app/link"
+	}
+	q := u.Query()
+	if strings.TrimSpace(device) != "" {
+		q.Set("device", device)
+	}
+	q.Set("app", "wingsvdex")
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+// CompleteBrowserLogin exchanges the one-time code from an approved browser link for a session.
+func (c *Client) CompleteBrowserLogin(ctx context.Context, code string) (Session, error) {
+	var resp sessionResp
+	if err := c.do(ctx, http.MethodPost, "/api/app/session", "", map[string]string{"code": code}, &resp); err != nil {
+		return Session{}, err
+	}
+	return resp.session(resp.Token, ""), nil
+}
+
+// Logout revokes the session on the panel. Best effort: the caller clears local state either
+// way, since a revoked-but-not-cleared session would wedge the account screen.
+func (c *Client) Logout(ctx context.Context, token string) error {
+	if token == "" {
+		return nil
+	}
+	return c.do(ctx, http.MethodPost, "/api/app/logout", token, map[string]string{}, nil)
+}
+
+// ChangePassword sets a new account password, authenticating with the current one.
+func (c *Client) ChangePassword(ctx context.Context, token, current, next string) error {
+	return c.do(ctx, http.MethodPost, "/api/app/password", token, map[string]string{
+		"current": current,
+		"new":     next,
+	}, nil)
+}
+
+// sessionResp is the identity payload the login and session endpoints return.
+type sessionResp struct {
+	Token   string `json:"token"`
+	Account struct {
+		ID            int64  `json:"id"`
+		Username      string `json:"username"`
+		AvatarVersion int64  `json:"avatar_version"`
+		FederationID  string `json:"federation_id"`
+	} `json:"account"`
+}
+
+func (r sessionResp) session(tokenFallback, nameFallback string) Session {
+	tok := r.Token
+	if tok == "" {
+		tok = tokenFallback
+	}
+	return sessionFrom(tok, r.Account.ID, r.Account.Username, nameFallback, r.Account.AvatarVersion, r.Account.FederationID)
+}
+
+func sessionFrom(token string, id int64, username, fallbackName string, avatarVersion int64, federationID string) Session {
+	if username == "" {
+		username = fallbackName
+	}
+	accountID := ""
+	if id != 0 {
+		accountID = strconv.FormatInt(id, 10)
+	}
+	return Session{Token: token, Username: username, AccountID: accountID, AvatarVersion: avatarVersion, FederationID: federationID}
+}
+
+// do performs one JSON request. body is marshalled when non-nil; out is decoded from the
+// response when non-nil. A non-2xx status is turned into an error carrying the panel's message.
+func (c *Client) do(ctx context.Context, method, path, token string, body any, out any) error {
+	if _, err := url.Parse(c.panel + path); err != nil {
+		return fmt.Errorf("federation: bad url: %w", err)
+	}
+	var reader io.Reader
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		reader = bytes.NewReader(raw)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.panel+path, reader)
+	if err != nil {
+		return err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("federation: %s %s: %w", method, path, err)
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if msg := panelError(data); msg != "" {
+			return errors.New("federation: " + msg)
+		}
+		return fmt.Errorf("federation: %s %s: http %d", method, path, resp.StatusCode)
+	}
+	if out == nil {
+		return nil
+	}
+	if err := json.Unmarshal(data, out); err != nil {
+		return fmt.Errorf("federation: decode %s: %w", path, err)
+	}
+	return nil
+}
+
+func panelError(data []byte) string {
+	var e struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	_ = json.Unmarshal(data, &e)
+	if e.Error != "" {
+		return e.Error
+	}
+	return e.Message
+}
