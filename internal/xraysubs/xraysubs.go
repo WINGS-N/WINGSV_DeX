@@ -81,7 +81,7 @@ func fetchFrom(ctx context.Context, sub config.Subscription, rawURL string, clie
 	if err != nil {
 		return Result{}, errors.New("invalid subscription URL")
 	}
-	req.Header.Set("User-Agent", "WINGSV-Dex")
+	req.Header.Set("User-Agent", "WINGSV-DeX")
 	resp, err := client.Do(req)
 	if err != nil {
 		return Result{}, errors.New("subscription request failed")

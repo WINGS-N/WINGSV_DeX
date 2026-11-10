@@ -5,7 +5,7 @@ set -euo pipefail
 #   wingsvpb     - the wingsv:// config schema (messages only) for the link codec.
 #   appcontrolpb - the local AppControl IPC (messages + gRPC) to drive the vkturn child.
 #
-# Dex is a sibling client of the WINGS V Android app, so it takes the client proto from that
+# DeX is a sibling client of the WINGS V Android app, so it takes the client proto from that
 # repo rather than the panel. wingsv.proto is owned by WINGS V (app/src/main/proto/wingsv.proto)
 # and synced here over a blobless sparse checkout - not a submodule and not a hand-maintained
 # copy - mirroring how the panel syncs control.proto. appcontrol.proto is owned by vk-turn-proxy

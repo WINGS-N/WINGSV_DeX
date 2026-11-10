@@ -20,6 +20,22 @@ depends:
   - nftables
   - pkexec | policykit-1
 
+# Пакеты той же библиотеки зовутся у всех по-своему, иначе archlinux и rpm
+# получат несуществующие зависимости и не поставятся
+overrides:
+  archlinux:
+    depends:
+      - gtk4
+      - webkitgtk-6.0
+      - nftables
+      - polkit
+  rpm:
+    depends:
+      - gtk4
+      - webkitgtk6.0
+      - nftables
+      - polkit
+
 scripts:
   postinstall: ./build/linux/postinstall.sh
 

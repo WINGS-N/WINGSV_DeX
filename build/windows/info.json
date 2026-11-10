@@ -6,10 +6,10 @@
 		"0000": {
 			"ProductVersion": "0.1.0",
 			"CompanyName": "WINGS-N",
-			"FileDescription": "WINGS V desktop client (VK TURN)",
-			"LegalCopyright": "© 2026, My Company",
-			"ProductName": "WINGS V Dex",
-			"Comments": "This is a comment"
+			"FileDescription": "WINGS V DeX desktop client (VK TURN)",
+			"LegalCopyright": "© 2026 WINGS-N",
+			"ProductName": "WINGS V DeX",
+			"Comments": "VPN client that hides WireGuard inside VK calls"
 		}
 	}
 }

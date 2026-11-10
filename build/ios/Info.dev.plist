@@ -7,9 +7,9 @@
     <key>CFBundleIdentifier</key>
     <string>org.wingsnet.dex.dev</string>
     <key>CFBundleName</key>
-    <string>WINGS V Dex (Dev)</string>
+    <string>WINGS V DeX (Dev)</string>
     <key>CFBundleDisplayName</key>
-    <string>WINGS V Dex (Dev)</string>
+    <string>WINGS V DeX (Dev)</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

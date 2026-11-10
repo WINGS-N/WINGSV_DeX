@@ -1,4 +1,4 @@
-; Universal NSIS installer for WINGS V Dex (Windows). One setup.exe serves both amd64
+; Universal NSIS installer for WINGS V DeX (Windows). One setup.exe serves both amd64
 ; and arm64: the 32-bit NSIS stub runs on amd64 (WoW64) and arm64 (x86 emulation), both
 ; payload sets are embedded, and only the one matching the host's native arch is
 ; extracted at install time. Build with:
@@ -25,12 +25,12 @@ Unicode true
 !define APPNAME "WINGS V"
 !define COMPANY "WINGS-N"
 !define EXENAME "wingsv-dex.exe"
-!define REGKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\WINGSV-Dex"
+!define REGKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\WINGSV-DeX"
 
 Name "${APPNAME}"
 OutFile "wingsv-dex-setup.exe"
 InstallDir "$PROGRAMFILES64\${APPNAME}"
-InstallDirRegKey HKLM "Software\${COMPANY}\WINGSV-Dex" "InstallDir"
+InstallDirRegKey HKLM "Software\${COMPANY}\WINGSV-DeX" "InstallDir"
 ; Program Files + HKLM writes need elevation; the VPN also needs admin at runtime.
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
@@ -89,7 +89,7 @@ Section "Install"
     File "${SRCDIR_AMD64}\wintun.dll"
   ${EndIf}
 
-  WriteRegStr HKLM "Software\${COMPANY}\WINGSV-Dex" "InstallDir" "$INSTDIR"
+  WriteRegStr HKLM "Software\${COMPANY}\WINGSV-DeX" "InstallDir" "$INSTDIR"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   ; Add/Remove Programs entry.
@@ -123,5 +123,5 @@ Section "Uninstall"
   Delete "$DESKTOP\${APPNAME}.lnk"
 
   DeleteRegKey HKLM "${REGKEY}"
-  DeleteRegKey HKLM "Software\${COMPANY}\WINGSV-Dex"
+  DeleteRegKey HKLM "Software\${COMPANY}\WINGSV-DeX"
 SectionEnd

@@ -77,7 +77,7 @@ func (a *AvatarService) download(username string, since time.Time) (string, []by
 	if err != nil {
 		return "", nil, false, err
 	}
-	req.Header.Set("User-Agent", "WINGSV-Dex")
+	req.Header.Set("User-Agent", "WINGSV-DeX")
 	if !since.IsZero() {
 		req.Header.Set("If-Modified-Since", since.UTC().Format(http.TimeFormat))
 	}

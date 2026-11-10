@@ -8,7 +8,7 @@
 # a release to stamp them, then push the stamped copy to the AUR repo.
 
 pkgname=wingsv-dex-bin
-pkgver=0.0.0
+pkgver=1.0.0
 pkgrel=1
 pkgdesc="VPN client that hides WireGuard inside VK calls (VK TURN)"
 arch=('x86_64' 'aarch64')
@@ -26,9 +26,11 @@ source_aarch64=("$pkgname-$pkgver-aarch64.tar.gz::$url/releases/download/v$pkgve
 source=("$pkgname-$pkgver.desktop::$url/raw/v$pkgver/build/linux/wingsv-dex.desktop"
         "$pkgname-$pkgver.png::$url/raw/v$pkgver/build/appicon.png"
         "$pkgname-$pkgver.LICENSE::$url/raw/v$pkgver/LICENSE")
-sha256sums_x86_64=('SKIP')
-sha256sums_aarch64=('SKIP')
-sha256sums=('SKIP' 'SKIP' 'SKIP')
+sha256sums_x86_64=('55545966aebbbfa67c3ce364ce21dad06c0a16fee024742d5ba7b6353b0034c8')
+sha256sums_aarch64=('bdcf537395755055ba79456a3790aa7bc70e27f253578f24f4fbbdfcf61091d0')
+sha256sums=('2f63da6ea4ac02c1629e787a7188b32a9c44791db3749eedaa6ac9c99e11cc33'
+            '2b70eb0e4a7ecb4e80835453490d35f181f87a44ab93383777b5f7c537cd3594'
+            'fb981668c18a279e285fc4d83fba1e836cc84dd4daa73c9697d3cfd2d8aca6e0')
 
 package() {
   # The app resolves xray/byedpi/vkturn next to its own executable, so they all

@@ -76,7 +76,7 @@ func download(url, dest string, cb func(done, total int64)) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "WINGSV-Dex")
+	req.Header.Set("User-Agent", "WINGSV-DeX")
 	resp, err := httpClient(5 * time.Minute).Do(req)
 	if err != nil {
 		return err

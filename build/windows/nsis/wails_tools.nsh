@@ -11,7 +11,7 @@
     !define INFO_COMPANYNAME "WINGS-N"
 !endif
 !ifndef INFO_PRODUCTNAME
-    !define INFO_PRODUCTNAME "WINGS V Dex"
+    !define INFO_PRODUCTNAME "WINGS V DeX"
 !endif
 !ifndef INFO_PRODUCTVERSION
     !define INFO_PRODUCTVERSION "0.1.0"

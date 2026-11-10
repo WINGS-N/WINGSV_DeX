@@ -10,11 +10,11 @@
     <Installer
         Path="wingsv_dex"
         Arguments=""
-        InstallLocation="C:\Program Files\WINGS-N\WINGS V Dex">
+        InstallLocation="C:\Program Files\WINGS-N\WINGS V DeX">
     </Installer>
     <PackageInformation
-        PackageName="WINGS V Dex"
-        PackageDisplayName="WINGS V Dex"
+        PackageName="WINGS V DeX"
+        PackageDisplayName="WINGS V DeX"
         PublisherName="CN=WINGS-N"
         PublisherDisplayName="WINGS-N"
         Version="0.1.0.0"
@@ -27,7 +27,7 @@
             <Application
                 Id="org.wingsnet.dex"
                 Description="WINGS V desktop client (VK TURN)"
-                DisplayName="WINGS V Dex"
+                DisplayName="WINGS V DeX"
                 ExecutableName="wingsv_dex"
                 EntryPoint="Windows.FullTrustApplication">
                 
@@ -41,7 +41,7 @@
         </Dependencies>
         <Properties>
             <Framework>false</Framework>
-            <DisplayName>WINGS V Dex</DisplayName>
+            <DisplayName>WINGS V DeX</DisplayName>
             <PublisherDisplayName>WINGS-N</PublisherDisplayName>
             <Description>WINGS V desktop client (VK TURN)</Description>
             <Logo>Assets\AppIcon.png</Logo>

@@ -151,7 +151,7 @@ func fetchLatest() (*ghRelease, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "WINGSV-Dex")
+	req.Header.Set("User-Agent", "WINGSV-DeX")
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := httpClient(10 * time.Second).Do(req)
 	if err != nil {

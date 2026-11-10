@@ -11,7 +11,7 @@
 # tarball omits submodules, and the build needs them.
 
 pkgname=wingsv-dex
-pkgver=0.2.0
+pkgver=1.0.0
 pkgrel=1
 pkgdesc="VPN client that hides WireGuard inside VK calls (VK TURN)"
 arch=('x86_64' 'aarch64')

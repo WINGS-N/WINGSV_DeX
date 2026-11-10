@@ -21,7 +21,7 @@ Unicode true
 ####
 ## !define INFO_PROJECTNAME    "my-project" # Default "WINGSV_DeX"
 ## !define INFO_COMPANYNAME    "My Company" # Default "WINGS-N"
-## !define INFO_PRODUCTNAME    "My Product Name" # Default "WINGS V Dex"
+## !define INFO_PRODUCTNAME    "My Product Name" # Default "WINGS V DeX"
 ## !define INFO_PRODUCTVERSION "1.0.0"     # Default "0.1.0"
 ## !define INFO_COPYRIGHT      "(c) Now, My Company" # Default "© 2026, My Company"
 ###

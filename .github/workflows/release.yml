@@ -127,7 +127,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"; [ -n "$VERSION" ] || VERSION="0.0.0"
           go-winres simply --arch amd64,arm64 --icon build/appicon.png --manifest gui \
-            --product-name "WINGS V" --file-description "WINGS V" \
+            --product-name "WINGS V DeX" --file-description "WINGS V DeX" \
             --product-version "$VERSION" --file-version "$VERSION"
       - name: Build payloads (amd64 + arm64)
         run: |
