@@ -41,6 +41,11 @@ type storeData struct {
 	XrayGeoSources   XrayGeoSources `json:"xrayGeoSources,omitempty"`
 	Subscriptions    []Subscription `json:"subscriptions"`
 	DefaultSubSeeded bool           `json:"defaultSubSeeded"` // the built-in Universal sub was added once
+
+	// Device fingerprint sent on subscription refreshes. SubscriptionHwidSeeded marks that the
+	// default (sending on) was applied once, so a user who turns it off is not re-defaulted on.
+	SubscriptionHwid       SubscriptionHwidSettings `json:"subscriptionHwid"`
+	SubscriptionHwidSeeded bool                     `json:"subscriptionHwidSeeded"`
 	// CaptchaBypassSeeded records that stored profiles were moved off the old "v2"
 	// solver default onto the vk.me captcha-free path once. Without the flag the
 	// migration would keep overriding a user who deliberately picks v2 back.
@@ -101,6 +106,13 @@ func NewStore(path string) (*Store, error) {
 	// Seed the built-in Universal subscription once, on this and older stores alike.
 	if !s.data.DefaultSubSeeded {
 		s.seedDefaultSubscriptionLocked()
+		migrated = true
+	}
+	// Default the device-fingerprint sending to on, once, so an older store (where the field
+	// is a zero-value false) starts sending it without overriding a later explicit opt-out.
+	if !s.data.SubscriptionHwidSeeded {
+		s.data.SubscriptionHwid = DefaultSubscriptionHwidSettings()
+		s.data.SubscriptionHwidSeeded = true
 		migrated = true
 	}
 	// The default captcha path moved from the v2 solver to the captcha-free vk.me
@@ -583,6 +595,36 @@ func (s *Store) AddSubscription(title, url string) (Subscription, error) {
 // EnsureFederationSubscription keeps the account's federation subscription (a fixed id) in the
 // list pointed at url. An unchanged url is a no-op; a changed one drops the stale nodes so the
 // next refresh re-fetches them.
+// SubscriptionHwidSettings returns the current device-fingerprint settings.
+func (s *Store) SubscriptionHwidSettings() SubscriptionHwidSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.SubscriptionHwid
+}
+
+// SetSubscriptionHwidSettings persists new device-fingerprint settings.
+func (s *Store) SetSubscriptionHwidSettings(v SubscriptionHwidSettings) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data.SubscriptionHwid = v
+	s.data.SubscriptionHwidSeeded = true
+	return s.saveLocked()
+}
+
+// HwidForSubscription resolves the fingerprint to send when refreshing one subscription. The
+// federation subscription always gets the real automatic fingerprint (its access is pinned to
+// the account's devices, so it cannot be disabled or faked); every other subscription gets the
+// effective settings (which may be empty when sending is off).
+func (s *Store) HwidForSubscription(subID string) DeviceInfo {
+	if subID == FederationSubscriptionID {
+		return DeviceFingerprint()
+	}
+	s.mu.Lock()
+	hw := s.data.SubscriptionHwid
+	s.mu.Unlock()
+	return hw.Effective()
+}
+
 func (s *Store) EnsureFederationSubscription(url string) error {
 	url = strings.TrimSpace(url)
 	if url == "" {
