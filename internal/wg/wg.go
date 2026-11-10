@@ -54,6 +54,15 @@ type Config struct {
 	H2      string `json:"h2"`
 	H3      string `json:"h3"`
 	H4      string `json:"h4"`
+	// AWG3 fields; empty ones are omitted from the awg config.
+	I1                     string `json:"i1"`
+	I2                     string `json:"i2"`
+	I3                     string `json:"i3"`
+	I4                     string `json:"i4"`
+	I5                     string `json:"i5"`
+	HeaderProtectionKey    string `json:"headerProtectionKey"`
+	ContentPaddingAddition string `json:"contentPaddingAddition"`
+	RekeyAfterTime         string `json:"rekeyAfterTime"`
 }
 
 // Up creates the interface, configures WireGuard, assigns the address, and installs
@@ -167,6 +176,7 @@ func awgSetConf(cfg Config) error {
 		"Jc": cfg.Jc, "Jmin": cfg.Jmin, "Jmax": cfg.Jmax,
 		"S1": cfg.S1, "S2": cfg.S2, "S3": cfg.S3, "S4": cfg.S4,
 		"H1": cfg.H1, "H2": cfg.H2, "H3": cfg.H3, "H4": cfg.H4,
+		"I1": cfg.I1, "I2": cfg.I2, "I3": cfg.I3, "I4": cfg.I4, "I5": cfg.I5,
 	} {
 		if strings.TrimSpace(v) != "" {
 			fmt.Fprintf(&b, "%s = %s\n", k, strings.TrimSpace(v))

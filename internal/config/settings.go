@@ -77,6 +77,16 @@ type WireGuard struct {
 	H2   string `json:"h2"`
 	H3   string `json:"h3"`
 	H4   string `json:"h4"`
+	// AWG3 (AmneziaWG 1.5): I1..I5 special-junk packet chains, header-protection key,
+	// content-padding range and rekey-after-time override. Empty for plain WG and AWG2.
+	I1                     string `json:"i1"`
+	I2                     string `json:"i2"`
+	I3                     string `json:"i3"`
+	I4                     string `json:"i4"`
+	I5                     string `json:"i5"`
+	HeaderProtectionKey    string `json:"headerProtectionKey"`
+	ContentPaddingAddition string `json:"contentPaddingAddition"`
+	RekeyAfterTime         string `json:"rekeyAfterTime"`
 }
 
 // DefaultWireGuard returns the WireGuard transport defaults.

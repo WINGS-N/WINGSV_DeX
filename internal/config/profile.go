@@ -291,6 +291,16 @@ func parseAwgQuick(raw string) WireGuard {
 				wg.H3 = val
 			case "h4":
 				wg.H4 = val
+			case "i1":
+				wg.I1 = val
+			case "i2":
+				wg.I2 = val
+			case "i3":
+				wg.I3 = val
+			case "i4":
+				wg.I4 = val
+			case "i5":
+				wg.I5 = val
 			}
 		case "peer":
 			switch key {
@@ -324,7 +334,8 @@ func ProfileFromQuickConfig(raw string) Profile {
 	kind := "wg"
 	if wg.Jc != "" || wg.Jmin != "" || wg.Jmax != "" ||
 		wg.S1 != "" || wg.S2 != "" || wg.S3 != "" || wg.S4 != "" ||
-		wg.H1 != "" || wg.H2 != "" || wg.H3 != "" || wg.H4 != "" {
+		wg.H1 != "" || wg.H2 != "" || wg.H3 != "" || wg.H4 != "" ||
+		wg.I1 != "" || wg.I2 != "" || wg.I3 != "" || wg.I4 != "" || wg.I5 != "" {
 		kind = "awg"
 	}
 	endpoint := strings.TrimSpace(wg.Endpoint)

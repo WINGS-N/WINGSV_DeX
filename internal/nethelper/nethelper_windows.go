@@ -29,6 +29,26 @@ type wgConfig struct {
 	AllowedIPs    []string `json:"allowedIps"`
 	DNS           []string `json:"dns"`
 	Amnezia       bool     `json:"amnezia"`
+	Jc            string   `json:"jc"`
+	Jmin          string   `json:"jmin"`
+	Jmax          string   `json:"jmax"`
+	S1            string   `json:"s1"`
+	S2            string   `json:"s2"`
+	S3            string   `json:"s3"`
+	S4            string   `json:"s4"`
+	H1            string   `json:"h1"`
+	H2            string   `json:"h2"`
+	H3            string   `json:"h3"`
+	H4            string   `json:"h4"`
+	I1            string   `json:"i1"`
+	I2            string   `json:"i2"`
+	I3            string   `json:"i3"`
+	I4            string   `json:"i4"`
+	I5            string   `json:"i5"`
+
+	HeaderProtectionKey    string `json:"headerProtectionKey"`
+	ContentPaddingAddition string `json:"contentPaddingAddition"`
+	RekeyAfterTime         string `json:"rekeyAfterTime"`
 }
 
 type command struct {
@@ -262,6 +282,14 @@ func toWgwin(c *wgConfig) wgwin.Config {
 		AllowedIPs:    c.AllowedIPs,
 		DNS:           c.DNS,
 		Amnezia:       c.Amnezia,
+
+		Jc: c.Jc, Jmin: c.Jmin, Jmax: c.Jmax,
+		S1: c.S1, S2: c.S2, S3: c.S3, S4: c.S4,
+		H1: c.H1, H2: c.H2, H3: c.H3, H4: c.H4,
+		I1: c.I1, I2: c.I2, I3: c.I3, I4: c.I4, I5: c.I5,
+		HeaderProtectionKey:    c.HeaderProtectionKey,
+		ContentPaddingAddition: c.ContentPaddingAddition,
+		RekeyAfterTime:         c.RekeyAfterTime,
 	}
 }
 

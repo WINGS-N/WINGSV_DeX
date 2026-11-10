@@ -44,6 +44,17 @@ type WGConfig struct {
 	H2      string `json:"h2"`
 	H3      string `json:"h3"`
 	H4      string `json:"h4"`
+	// AWG3 (AmneziaWG 1.5/v3) obfuscation: I1..I5 are the special-junk packet chains,
+	// HeaderProtectionKey encrypts the packet headers, ContentPaddingAddition pads the
+	// payload, RekeyAfterTime overrides the rekey interval. All kept as raw strings.
+	I1                     string `json:"i1"`
+	I2                     string `json:"i2"`
+	I3                     string `json:"i3"`
+	I4                     string `json:"i4"`
+	I5                     string `json:"i5"`
+	HeaderProtectionKey    string `json:"headerProtectionKey"`
+	ContentPaddingAddition string `json:"contentPaddingAddition"`
+	RekeyAfterTime         string `json:"rekeyAfterTime"`
 }
 
 type command struct {
