@@ -7,11 +7,64 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/WINGS-N/wingsv-dex/internal/config"
 	"github.com/WINGS-N/wingsv-dex/internal/federation"
 )
+
+// ReceiptRouting holds the live node-door routing the connection service updates as the
+// tunnel comes up and down, read by the receipt engine's node-door fallback. It is a plain
+// struct (not a Wails-bound service), so its accessors never leak into the frontend bindings.
+type ReceiptRouting struct {
+	port    atomic.Int64
+	gateway atomic.Pointer[string]
+}
+
+// ControlPort is the Xray control SOCKS port the node door routes receipts through, or 0 when
+// there is none (DeX's Xray VPN path serves no local SOCKS, so this stays 0 for now).
+func (r *ReceiptRouting) ControlPort() int { return int(r.port.Load()) }
+
+// Gateway is the donor node's address inside the tunnel, or empty when no tunnel is up.
+func (r *ReceiptRouting) Gateway() string {
+	if s := r.gateway.Load(); s != nil {
+		return *s
+	}
+	return ""
+}
+
+// set records the current routing; clear wipes it on disconnect.
+func (r *ReceiptRouting) set(port int, gateway string) {
+	r.port.Store(int64(port))
+	r.gateway.Store(&gateway)
+}
+
+func (r *ReceiptRouting) clear() {
+	r.port.Store(0)
+	r.gateway.Store(nil)
+}
+
+// tunnelGatewayOf derives the node's tunnel-side address from the client's WireGuard address.
+// The client gets a /32, so the subnet is not recoverable from it; the relay's convention is
+// the first address of the pool, so the last octet is replaced with 1. IPv6 addresses yield
+// no gateway (empty). A miss is harmless: the door just does not answer and the receipts wait.
+func tunnelGatewayOf(addresses []string) string {
+	for _, a := range addresses {
+		host := strings.TrimSpace(a)
+		if i := strings.IndexByte(host, '/'); i >= 0 {
+			host = host[:i]
+		}
+		if host == "" || strings.ContainsRune(host, ':') {
+			continue // IPv6 or empty
+		}
+		if dot := strings.LastIndexByte(host, '.'); dot > 0 {
+			return host[:dot] + ".1"
+		}
+	}
+	return ""
+}
 
 // receiptSampleInterval is how often the engine is fed fresh counters. The engine itself only
 // closes a window every few minutes, so a tighter interval just keeps the baseline current

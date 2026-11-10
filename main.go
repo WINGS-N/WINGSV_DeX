@@ -87,13 +87,14 @@ func main() {
 	// service registers the current-account provider; the connection service feeds it the exact
 	// traffic counters from the data plane. Built before both so each takes it as a constructor
 	// argument (keeping it off the Wails binding surface).
+	receiptRouting := &services.ReceiptRouting{}
 	receiptEngine := federation.NewReceiptEngine(
 		filepath.Join(configDir, "federation"),
-		federation.NewNodeDoor(func() int { return 0 }, func() string { return "" }),
+		federation.NewNodeDoor(receiptRouting.ControlPort, receiptRouting.Gateway),
 		func(line string) { log.Printf("[receipts] %s", line) },
 	)
 
-	connectionSvc := services.NewConnectionService(store, logStore, manager, vkAuthSvc, exePath, receiptEngine, configDir)
+	connectionSvc := services.NewConnectionService(store, logStore, manager, vkAuthSvc, exePath, receiptEngine, receiptRouting, configDir)
 	aboutSvc := services.NewAboutService(func() { manager.Stop() })
 	subscriptionSvc := services.NewSubscriptionService(store)
 	geoStore, err := geoassets.New(configDir)

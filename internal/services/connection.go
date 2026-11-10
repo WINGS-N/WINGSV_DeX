@@ -142,9 +142,10 @@ type ConnectionService struct {
 	// Federation usage receipts: the engine signs and sends them, configDir is where its
 	// xray stats commander socket lives, and xrayStats is the live stats client for the
 	// current xray session (closed on disconnect). All nil/empty when signed out.
-	receiptEngine *federation.ReceiptEngine
-	configDir     string
-	xrayStats     *federation.XrayStats
+	receiptEngine  *federation.ReceiptEngine
+	receiptRouting *ReceiptRouting
+	configDir      string
+	xrayStats      *federation.XrayStats
 }
 
 // NewConnectionService wires the service to the store, the vkturn manager, the VK
@@ -155,16 +156,17 @@ type ConnectionService struct {
 // stats commander socket lives. Both are constructor arguments rather than exported setters
 // so Wails does not surface the engine to the frontend as a binding, the same reason vkauth
 // is passed in here.
-func NewConnectionService(store *config.Store, logStore *applog.Store, manager *vktp.Manager, vkauth *VKAuthService, exePath string, receipts *federation.ReceiptEngine, configDir string) *ConnectionService {
+func NewConnectionService(store *config.Store, logStore *applog.Store, manager *vktp.Manager, vkauth *VKAuthService, exePath string, receipts *federation.ReceiptEngine, routing *ReceiptRouting, configDir string) *ConnectionService {
 	return &ConnectionService{
-		store:         store,
-		logStore:      logStore,
-		manager:       manager,
-		vkauth:        vkauth,
-		exePath:       exePath,
-		receiptEngine: receipts,
-		configDir:     configDir,
-		state:         ConnectionState{Status: StatusDisconnected},
+		store:          store,
+		logStore:       logStore,
+		manager:        manager,
+		vkauth:         vkauth,
+		exePath:        exePath,
+		receiptEngine:  receipts,
+		receiptRouting: routing,
+		configDir:      configDir,
+		state:          ConnectionState{Status: StatusDisconnected},
 	}
 }
 
@@ -313,6 +315,16 @@ func (s *ConnectionService) Connect() (ConnectionState, error) {
 	s.appliedProfile = profile
 	s.appliedClient = client
 	s.mu.Unlock()
+
+	// Federation node door routing: a managed full-tunnel profile is a donor node, so record
+	// its tunnel-side gateway for the receipt engine's panel-unreachable fallback.
+	if s.receiptRouting != nil {
+		if client.RuntimeMode != "proxy" && profile.Managed {
+			s.receiptRouting.set(0, tunnelGatewayOf(wgCfg.Addresses))
+		} else {
+			s.receiptRouting.clear()
+		}
+	}
 
 	s.startTelemetryAndStats(ctx, client.Threads)
 	if client.VKAuthMode == "account" && s.vkauth != nil {
@@ -621,6 +633,9 @@ func (s *ConnectionService) Disconnect() ConnectionState {
 	bp := s.byedpiProc
 	s.byedpiProc = nil
 	s.mu.Unlock()
+	if s.receiptRouting != nil {
+		s.receiptRouting.clear()
+	}
 
 	s.setState(ConnectionState{Status: StatusStopping})
 	s.manager.Stop()
