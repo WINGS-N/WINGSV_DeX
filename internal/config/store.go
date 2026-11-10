@@ -580,6 +580,76 @@ func (s *Store) AddSubscription(title, url string) (Subscription, error) {
 	return sub, nil
 }
 
+// EnsureFederationSubscription keeps the account's federation subscription (a fixed id) in the
+// list pointed at url. An unchanged url is a no-op; a changed one drops the stale nodes so the
+// next refresh re-fetches them.
+func (s *Store) EnsureFederationSubscription(url string) error {
+	url = strings.TrimSpace(url)
+	if url == "" {
+		return errors.New("empty federation subscription url")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.data.Subscriptions {
+		if s.data.Subscriptions[i].ID != FederationSubscriptionID {
+			continue
+		}
+		if strings.TrimSpace(s.data.Subscriptions[i].URL) == url {
+			return nil
+		}
+		s.data.Subscriptions[i].URL = url
+		s.data.Subscriptions[i].Title = FederationSubscriptionTitle
+		s.data.Subscriptions[i].AutoUpdate = true
+		s.data.Subscriptions[i].RefreshIntervalMinutes = federationRefreshMinutes
+		s.dropSubscriptionProfilesLocked(FederationSubscriptionID)
+		return s.saveLocked()
+	}
+	s.data.Subscriptions = append(s.data.Subscriptions, Subscription{
+		ID:                     FederationSubscriptionID,
+		Title:                  FederationSubscriptionTitle,
+		URL:                    url,
+		AutoUpdate:             true,
+		RefreshIntervalMinutes: federationRefreshMinutes,
+	})
+	return s.saveLocked()
+}
+
+// RemoveFederationSubscription drops the account's federation subscription and its profiles.
+// It is a no-op when none is present.
+func (s *Store) RemoveFederationSubscription() error {
+	s.mu.Lock()
+	present := false
+	kept := s.data.Subscriptions[:0]
+	for _, sub := range s.data.Subscriptions {
+		if sub.ID == FederationSubscriptionID {
+			present = true
+			continue
+		}
+		kept = append(kept, sub)
+	}
+	if !present {
+		s.mu.Unlock()
+		return nil
+	}
+	s.data.Subscriptions = kept
+	s.dropSubscriptionProfilesLocked(FederationSubscriptionID)
+	err := s.saveLocked()
+	s.mu.Unlock()
+	return err
+}
+
+// HasFederationSubscription reports whether an account's federation subscription is present.
+func (s *Store) HasFederationSubscription() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, sub := range s.data.Subscriptions {
+		if sub.ID == FederationSubscriptionID {
+			return true
+		}
+	}
+	return false
+}
+
 // RemoveSubscription deletes a subscription and every Xray profile that came from it.
 func (s *Store) RemoveSubscription(id string) error {
 	s.mu.Lock()

@@ -189,6 +189,18 @@ type Subscription struct {
 	AdvertisedExpireAt      int64    `json:"advertisedExpireAt,omitempty"`
 }
 
+// FederationSubscriptionID is the fixed id of the one subscription an account's federation
+// access is kept under; it is added and removed with the account, and its nodes take
+// precedence over the free pool while the account is signed in.
+const FederationSubscriptionID = "wingsvpn-federation"
+
+// FederationSubscriptionTitle labels that subscription in the list.
+const FederationSubscriptionTitle = "WINGS Account"
+
+// federationRefreshMinutes is how often the federation subscription re-reads its nodes; the
+// federation rotates ports and quarantines nodes often, so it refreshes faster than the default.
+const federationRefreshMinutes = 30
+
 // ValidateSubscriptionProxyURL permits only unauthenticated loopback HTTP proxies.
 func ValidateSubscriptionProxyURL(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
