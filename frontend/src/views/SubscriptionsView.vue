@@ -41,6 +41,21 @@
         </div>
       </SamsungCard>
 
+      <button
+        type="button"
+        class="mt-4 flex w-full items-center gap-3 rounded-2xl bg-wings-surface px-4 py-3.5 text-left hover:bg-white/[0.06]"
+        @click="openOverlay('hwid-settings')"
+      >
+        <span class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-500 text-white">
+          <Fingerprint :size="18" />
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-[17px] text-wings-text">Передача HWID</span>
+          <span class="block text-sm text-wings-muted">{{ hwidSummary }}</span>
+        </span>
+        <ChevronRight :size="18" class="shrink-0 text-wings-mutedStrong" />
+      </button>
+
       <div class="mt-6">
         <div class="mb-2 px-1 text-[12px] font-bold uppercase tracking-[0.14em] text-wings-kicker">Подписки</div>
         <p v-if="subs.length === 0" class="py-8 text-center text-sm text-wings-muted">Подписок пока нет</p>
@@ -121,7 +136,7 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { ChevronLeft, RefreshCw, Trash2 } from '@lucide/vue';
+import { ChevronLeft, ChevronRight, RefreshCw, Trash2, Fingerprint } from '@lucide/vue';
 import { Events } from '@wailsio/runtime';
 import { SubscriptionService } from '@bindings/github.com/WINGS-N/wingsv-dex/internal/services';
 import SamsungCard from '@/components/layout/SamsungCard.vue';
@@ -129,7 +144,7 @@ import SamsungButton from '@/components/layout/SamsungButton.vue';
 import SamsungSpinner from '@/components/layout/SamsungSpinner.vue';
 import OneuiInput from '@/components/controls/OneuiInput.vue';
 import OneuiSwitch from '@/components/controls/OneuiSwitch.vue';
-import { closeOverlay } from '@/stores/nav.js';
+import { closeOverlay, openOverlay } from '@/stores/nav.js';
 import { showToast } from '@/stores/toast.js';
 import { usePinnedScroll } from '@/composables/usePinnedScroll.js';
 
@@ -146,6 +161,7 @@ const savingProxy = ref('');
 const busy = ref(false);
 const refreshing = ref('');
 const error = ref('');
+const hwidSummary = ref('Автоматическая передача HWID и данных устройства при обновлении подписок');
 
 function apply(list) {
   subs.value = list ?? [];
@@ -156,6 +172,16 @@ async function load() {
     apply(await SubscriptionService.List());
   } catch {
     // backend not available (pure-vite preview)
+  }
+  try {
+    const h = await SubscriptionService.HwidSettings();
+    hwidSummary.value = !h.enabled
+      ? 'Передача HWID выключена'
+      : h.manual
+        ? 'Ручные значения HWID и данных устройства при обновлении подписок'
+        : 'Автоматическая передача HWID и данных устройства при обновлении подписок';
+  } catch {
+    // backend not available
   }
 }
 
