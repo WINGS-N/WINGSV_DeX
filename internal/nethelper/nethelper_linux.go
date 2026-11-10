@@ -93,7 +93,7 @@ func RunForUID(input io.Reader, output io.Writer, allowedUID uint32) error {
 	return runIO(input, output, cred)
 }
 
-func runIO(input io.Reader, output io.Writer, childCredential *childCredential) error {
+func runIO(input io.Reader, output io.Writer, cred *childCredential) error {
 	log.SetPrefix("net-helper: ")
 	log.SetFlags(log.Ltime)
 	log.Printf("started (uid=%d)", os.Getuid())
@@ -159,8 +159,8 @@ func runIO(input io.Reader, output io.Writer, childCredential *childCredential) 
 			}
 			return nil
 		}
-		if childCredential != nil {
-			if err := validateDaemonCommand(cmd, protect != nil, active, childCredential.Uid); err != nil {
+		if cred != nil {
+			if err := validateDaemonCommand(cmd, protect != nil, active, cred.Uid); err != nil {
 				_ = enc.Encode(reply{Error: err.Error()})
 				continue
 			}
@@ -169,8 +169,8 @@ func runIO(input io.Reader, output io.Writer, childCredential *childCredential) 
 		case "start":
 			var p *wg.ProtectServer
 			var err error
-			if childCredential != nil {
-				p, err = wg.ListenProtectForUID(cmd.ProtectSocket, cmd.FwMark, childCredential.Uid)
+			if cred != nil {
+				p, err = wg.ListenProtectForUID(cmd.ProtectSocket, cmd.FwMark, cred.Uid)
 			} else {
 				p, err = wg.ListenProtect(cmd.ProtectSocket, cmd.FwMark)
 			}
@@ -251,8 +251,8 @@ func runIO(input io.Reader, output io.Writer, childCredential *childCredential) 
 				continue
 			}
 			appsCg = ac
-			if childCredential != nil {
-				matcher = wg.StartAppMatcherForUID(ac, cmd.Apps, childCredential.Uid)
+			if cred != nil {
+				matcher = wg.StartAppMatcherForUID(ac, cmd.Apps, cred.Uid)
 			} else {
 				matcher = wg.StartAppMatcher(ac, cmd.Apps)
 			}
@@ -286,7 +286,7 @@ func runIO(input io.Reader, output io.Writer, childCredential *childCredential) 
 				xray.stop()
 				xray = nil
 			}
-			x, err := startXray(xrayBin, cmd.XrayConfig, cmd.TunName, cmd.DatDir, cmd.EnableIPv6, childCredential)
+			x, err := startXray(xrayBin, cmd.XrayConfig, cmd.TunName, cmd.DatDir, cmd.EnableIPv6, cred)
 			if err != nil {
 				log.Printf("xrayup failed: %v", err)
 				_ = enc.Encode(reply{Error: err.Error()})
@@ -336,7 +336,7 @@ func runIO(input io.Reader, output io.Writer, childCredential *childCredential) 
 				bypass = bp
 				args = append(append([]string{}, args...), "--fwmark", strconv.Itoa(fwmark))
 			}
-			b, err := startByeDPI(byedpiBin, args, childCredential)
+			b, err := startByeDPI(byedpiBin, args, cred)
 			if err != nil {
 				log.Printf("byedpiup failed: %v", err)
 				_ = enc.Encode(reply{Error: err.Error()})
