@@ -293,6 +293,18 @@ func (s *AccountService) RedeemInvite(code string) error {
 	return client.RedeemInvite(ctx, token, code)
 }
 
+// OpenPanelSection opens a panel page (such as the client-management section) in the system
+// browser. The path is appended to the account's panel base URL.
+func (s *AccountService) OpenPanelSection(path string) error {
+	s.mu.Lock()
+	base := s.client().Panel()
+	s.mu.Unlock()
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return openURL(strings.TrimRight(base, "/") + path)
+}
+
 // ChangePassword updates the account password.
 func (s *AccountService) ChangePassword(current, next string) error {
 	s.mu.Lock()
