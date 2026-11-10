@@ -4,13 +4,13 @@ go 1.26.0
 
 require (
 	github.com/Microsoft/go-winio v0.6.4
+	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260814
 	github.com/andybalholm/brotli v1.2.7
 	github.com/vishvananda/netlink v1.3.1
 	github.com/wailsapp/wails/v3 v3.1.0
 	github.com/wailsapp/wails/webview2 v1.0.28
 	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
-	golang.zx2c4.com/wireguard v0.0.0-20261024220952-b3bc704ef0ee
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
 	golang.zx2c4.com/wireguard/windows v1.1.1
 	google.golang.org/grpc v1.85.0
@@ -33,5 +33,6 @@ require (
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
+	golang.zx2c4.com/wireguard v0.0.0-20261024220952-b3bc704ef0ee // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e // indirect
 )

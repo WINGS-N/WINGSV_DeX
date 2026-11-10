@@ -16,10 +16,10 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/amnezia-vpn/amneziawg-go/v3/conn"
+	"github.com/amnezia-vpn/amneziawg-go/v3/device"
+	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 	"golang.org/x/sys/windows"
-	"golang.zx2c4.com/wireguard/conn"
-	"golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
@@ -37,6 +37,16 @@ type Config struct {
 	AllowedIPs    []string
 	DNS           []string
 	Amnezia       bool
+	// AmneziaWG obfuscation params (empty for plain WireGuard). Jc/Jmin/Jmax junk counts
+	// and sizes; S1..S4 handshake junk sizes; H1..H4 magic headers; I1..I5 special-junk
+	// chains; and the AWG3 header-protection key, content-padding range and rekey time.
+	Jc, Jmin, Jmax         string
+	S1, S2, S3, S4         string
+	H1, H2, H3, H4         string
+	I1, I2, I3, I4, I5     string
+	HeaderProtectionKey    string
+	ContentPaddingAddition string
+	RekeyAfterTime         string
 }
 
 // Tunnel is a live wintun + wireguard-go interface. Close it with Down.
@@ -53,9 +63,6 @@ type Tunnel struct {
 // Up creates the wintun adapter, starts the userspace WireGuard device, configures the
 // single peer and sets the interface addresses, routes and DNS.
 func Up(cfg Config) (*Tunnel, error) {
-	if cfg.Amnezia {
-		return nil, fmt.Errorf("wgwin: AmneziaWG is not supported on Windows yet (needs a patched wireguard-go)")
-	}
 	name := cfg.Interface
 	if name == "" {
 		name = "wingsv0"
@@ -321,6 +328,23 @@ func uapiConfig(cfg Config) (string, error) {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "private_key=%s\n", hex.EncodeToString(priv[:]))
+	if cfg.Amnezia {
+		// Device-level AmneziaWG obfuscation keys, set before the peer. amneziawg-go parses
+		// the raw string values itself, so empty ones are simply left out.
+		for _, kv := range [][2]string{
+			{"jc", cfg.Jc}, {"jmin", cfg.Jmin}, {"jmax", cfg.Jmax},
+			{"s1", cfg.S1}, {"s2", cfg.S2}, {"s3", cfg.S3}, {"s4", cfg.S4},
+			{"h1", cfg.H1}, {"h2", cfg.H2}, {"h3", cfg.H3}, {"h4", cfg.H4},
+			{"i1", cfg.I1}, {"i2", cfg.I2}, {"i3", cfg.I3}, {"i4", cfg.I4}, {"i5", cfg.I5},
+			{"header_protection_key", cfg.HeaderProtectionKey},
+			{"content_padding_addition", cfg.ContentPaddingAddition},
+			{"rekey_after_time", cfg.RekeyAfterTime},
+		} {
+			if v := strings.TrimSpace(kv[1]); v != "" {
+				fmt.Fprintf(&b, "%s=%s\n", kv[0], v)
+			}
+		}
+	}
 	fmt.Fprintf(&b, "replace_peers=true\n")
 	fmt.Fprintf(&b, "public_key=%s\n", hex.EncodeToString(pub[:]))
 	if strings.TrimSpace(cfg.PresharedKey) != "" {
