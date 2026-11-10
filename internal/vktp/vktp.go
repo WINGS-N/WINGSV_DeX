@@ -222,6 +222,24 @@ func (m *Manager) Telemetry(ctx context.Context, onCount func(connected, workers
 	}
 }
 
+// PayloadBytes reads a single telemetry snapshot and returns the cumulative payload the
+// relay counted through this client, up and down. These are the only traffic figures a
+// federation receipt may be signed against: the interface counters also carry local DNS,
+// keepalive and tunnel overhead, so the two sides would never agree.
+func (m *Manager) PayloadBytes(ctx context.Context) (up, down int64, err error) {
+	m.mu.Lock()
+	client := m.client
+	m.mu.Unlock()
+	if client == nil {
+		return 0, 0, errors.New("vktp: not running")
+	}
+	t, err := client.GetTelemetry(ctx, &appcontrolpb.GetTelemetryRequest{})
+	if err != nil {
+		return 0, 0, err
+	}
+	return int64(t.GetPayloadUpBytes()), int64(t.GetPayloadDownBytes()), nil
+}
+
 // StreamUnderlayIPs streams the relay's underlay destination IPs (the VK TURN and peer
 // servers it pins to the physical interface on Windows) to onIP until ctx is cancelled or
 // the stream ends. The host installs a physical-gateway /32 bypass route for each so the
