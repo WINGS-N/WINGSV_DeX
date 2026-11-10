@@ -75,7 +75,7 @@
             tint="bg-indigo-500"
             title="Подписка"
             subtitle="Ссылка, по которой приложение обновляется само"
-            @click="soon"
+            @click="openOverlay('account-subscription')"
           />
           <div class="mx-14 border-t border-wings-divider"></div>
           <AccountRow
@@ -83,7 +83,7 @@
             tint="bg-emerald-500"
             title="Приглашения"
             subtitle="Ваш код для приглашения"
-            @click="soon"
+            @click="openOverlay('account-invites')"
           />
         </SamsungCard>
 
@@ -93,7 +93,7 @@
             tint="bg-blue-500"
             title="Мои серверы"
             subtitle="Что вы отдали в федерацию"
-            @click="soon"
+            @click="openOverlay('account-donor')"
           />
           <div class="mx-14 border-t border-wings-divider"></div>
           <AccountRow
@@ -101,7 +101,7 @@
             tint="bg-violet-500"
             title="Управление клиентами"
             subtitle="Свои клиенты и их устройства"
-            @click="soon"
+            @click="openClients"
           />
         </SamsungCard>
 
@@ -193,8 +193,12 @@ async function passwordLogin() {
   }
 }
 
-function soon() {
-  showToast('Скоро', { type: 'info' });
+async function openClients() {
+  try {
+    await AccountService.OpenPanelSection('/admin/clients');
+  } catch {
+    showToast('Не найдено приложение для открытия ссылки', { type: 'warn' });
+  }
 }
 
 async function logout() {

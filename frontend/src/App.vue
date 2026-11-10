@@ -11,6 +11,9 @@
     <AboutView v-else-if="overlay === 'about'" />
     <AccountView v-else-if="overlay === 'account'" />
     <AccountProfileView v-else-if="overlay === 'account-profile'" />
+    <FederationSubscriptionView v-else-if="overlay === 'account-subscription'" />
+    <FederationInvitesView v-else-if="overlay === 'account-invites'" />
+    <FederationDonorView v-else-if="overlay === 'account-donor'" />
 
     <template v-else>
       <main class="min-h-0 flex-1 overflow-y-auto">
@@ -64,6 +67,9 @@ import AutoSearchView from '@/views/AutoSearchView.vue';
 import AboutView from '@/views/AboutView.vue';
 import AccountView from '@/views/AccountView.vue';
 import AccountProfileView from '@/views/AccountProfileView.vue';
+import FederationSubscriptionView from '@/views/FederationSubscriptionView.vue';
+import FederationInvitesView from '@/views/FederationInvitesView.vue';
+import FederationDonorView from '@/views/FederationDonorView.vue';
 import ConfirmDialog from '@/components/layout/ConfirmDialog.vue';
 import ToastHost from '@/components/layout/ToastHost.vue';
 import FirstLaunchView from '@/views/firstlaunch/FirstLaunchView.vue';
