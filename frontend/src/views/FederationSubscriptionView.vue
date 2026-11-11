@@ -30,7 +30,7 @@
         <TriangleAlert :size="20" class="mt-0.5 shrink-0 text-amber-400" />
         <p class="text-[13px] leading-relaxed text-amber-200/90">
           Ни в коем случае не копируйте эту подписку в другие программы, помимо WINGS V и WINGS V DeX. Не используйте
-          эту подписку на другом WINGS Account.
+          эту подписку на другом WINGS Account или без аккаунта.
         </p>
       </div>
     </div>
