@@ -15,6 +15,7 @@ in
       privilegedHelper.enable = true;
     };
     environment.systemPackages = [ pkgs.python3 pkgs.iproute2 ];
+    services.resolved.enable = true;
 
     users.users.tester = {
       isNormalUser = true;
@@ -82,8 +83,14 @@ in
         return json.loads(s.makefile().readline())
     assert send({'cmd':'start','protectSocket':'wingsv-dex-protect','fwmark':34952,'tunName':'wingsv-tun'}).get('ok')
     config = {'log':{'loglevel':'warning'},'inbounds':[{'tag':'tun-in','protocol':'tun','settings':{'name':'wingsv-tun','mtu':1500,'autoOutboundsInterface':'eth1'}}],'outbounds':[{'tag':'proxy','protocol':'freedom','settings':{}}]}
+    config['dns'] = {'hosts': {'dns-check.test': '192.0.2.7'}}
+    config['outbounds'].append({'tag':'dns-out','protocol':'dns'})
+    config['routing'] = {'rules':[{'type':'field','inboundTag':['tun-in'],'port':'53','outboundTag':'dns-out'}]}
     result = send({'cmd':'xrayup','xrayBin':'${package}/bin/xray','xrayConfig':json.dumps(config),'tunName':'wingsv-tun'})
     assert result.get('ok'), result
+    assert '198.18.0.2' in subprocess.check_output(['resolvectl','dns','wingsv-tun'], text=True)
+    assert '~.' in subprocess.check_output(['resolvectl','domain','wingsv-tun'], text=True)
+    assert socket.gethostbyname('dns-check.test') == '192.0.2.7'
     time.sleep(2)
     pid = int(subprocess.check_output(['pgrep','-u','tester','-x','xray']).splitlines()[0])
     status = open('/proc/%d/status' % pid).read()
@@ -98,5 +105,6 @@ in
     s.close()
     """
     machine.succeed(as_user("tester", xray_client))
+    machine.wait_until_succeeds("! resolvectl dns | grep -F 198.18.0.2")
   '';
 }

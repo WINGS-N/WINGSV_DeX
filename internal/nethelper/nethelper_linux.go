@@ -292,6 +292,14 @@ func runIO(input io.Reader, output io.Writer, cred *childCredential) error {
 				_ = enc.Encode(reply{Error: err.Error()})
 				continue
 			}
+			if cmd.TunName != "" {
+				if err := setXrayDNS(cmd.TunName); err != nil {
+					x.stop()
+					log.Printf("xrayup DNS failed: %v", err)
+					_ = enc.Encode(reply{Error: err.Error()})
+					continue
+				}
+			}
 			xray = x
 			log.Printf("xrayup ok: bin=%s tun=%s pid=%d", cmd.XrayBin, cmd.TunName, x.cmd.Process.Pid)
 			_ = enc.Encode(reply{OK: true})

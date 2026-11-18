@@ -55,7 +55,8 @@ in
       description = "WINGS V DeX privileged network helper";
       wantedBy = [ "multi-user.target" ];
       after = [ "local-fs.target" ];
-      path = with pkgs; [ coreutils nftables kmod iproute2 amneziawg-tools ];
+      path = with pkgs; [ coreutils nftables kmod iproute2 amneziawg-tools systemd ]
+        ++ lib.optional config.networking.networkmanager.enable pkgs.networkmanager;
       serviceConfig = {
         Type = "simple";
         User = "root";
