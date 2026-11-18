@@ -13,20 +13,21 @@
     </header>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-8">
-      <SamsungCard class="mb-4 flex flex-col gap-1 py-1">
-        <SwitchRow
-          v-model="form.enabled"
-          title="Передавать данные HWID"
-          subtitle="Отправлять x-hwid, x-device-os, x-ver-os и x-device-model при обновлении подписок"
-          @update:modelValue="save"
-        />
-        <div class="mx-4 border-t border-wings-divider"></div>
-        <SwitchRow
-          v-model="form.manual"
-          title="Задать данные HWID вручную"
-          subtitle="Использовать введённые вручную значения вместо автоматических"
-          @update:modelValue="save"
-        />
+      <SamsungCard class="mb-4">
+        <div class="divide-y divide-wings-divider">
+          <SwitchRow
+            v-model="form.enabled"
+            title="Передавать данные HWID"
+            subtitle="Отправлять x-hwid, x-device-os, x-ver-os и x-device-model при обновлении подписок"
+            @update:modelValue="save"
+          />
+          <SwitchRow
+            v-model="form.manual"
+            title="Задать данные HWID вручную"
+            subtitle="Использовать введённые вручную значения вместо автоматических"
+            @update:modelValue="save"
+          />
+        </div>
       </SamsungCard>
 
       <div class="mb-2 px-1 text-[12px] font-bold uppercase tracking-[0.14em] text-wings-kicker">Данные устройства</div>

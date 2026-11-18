@@ -1,10 +1,10 @@
 <template>
   <div class="flex items-center justify-between gap-3 py-3.5">
-    <div class="min-w-0">
+    <div class="min-w-0 flex-1">
       <p class="text-[17px]">{{ title }}</p>
       <p v-if="subtitle" class="mt-0.5 text-sm text-wings-muted">{{ subtitle }}</p>
     </div>
-    <OneuiSwitch :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)" />
+    <OneuiSwitch class="shrink-0" :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)" />
   </div>
 </template>
 
