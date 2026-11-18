@@ -27,9 +27,9 @@
           <OneuiInput label="Ссылка" v-model="newUrl" placeholder="https://..." />
           <OneuiInput label="Запасные ссылки" v-model="newMirrors" placeholder="через запятую" />
           <div class="rounded-xl border border-wings-divider bg-white/[0.03] p-3">
-            <OneuiInput label="Local HTTP proxy (optional)" v-model="newProxyUrl" placeholder="http://127.0.0.1:2080" />
+            <OneuiInput :label="proxyText.label" v-model="newProxyUrl" placeholder="http://127.0.0.1:2080" />
             <p class="mt-1.5 text-[12px] leading-relaxed text-wings-muted">
-              Leave blank for normal fetch. Enter a running local proxy address, such as Throne.
+              {{ proxyText.hint }}
             </p>
           </div>
           <div class="flex justify-end">
@@ -108,15 +108,12 @@
             <div class="mt-3 border-t border-wings-divider pt-3">
               <OneuiInput
                 :model-value="proxyDrafts[sub.id] ?? sub.proxyUrl ?? ''"
-                label="Local HTTP proxy"
+                :label="proxyText.label"
                 placeholder="http://127.0.0.1:2080"
                 @update:model-value="(value) => (proxyDrafts[sub.id] = value)"
               />
               <div class="mt-2 flex items-center justify-between gap-3">
-                <p class="text-[12px] leading-relaxed text-wings-muted">
-                  Leave blank for normal fetch; enter a running proxy, such as Throne. Save the proxy, then refresh to
-                  use it.
-                </p>
+                <p class="text-[12px] leading-relaxed text-wings-muted">{{ proxyText.hint }} {{ proxyText.refresh }}</p>
                 <button
                   type="button"
                   class="shrink-0 rounded-full border border-wings-divider px-3 py-1.5 text-[12px] text-wings-text transition-colors hover:border-wings-accent hover:text-wings-accent"
@@ -125,7 +122,7 @@
                   "
                   @click="setProxy(sub)"
                 >
-                  {{ savingProxy === sub.id ? 'Saving...' : 'Save' }}
+                  {{ savingProxy === sub.id ? proxyText.saving : proxyText.save }}
                 </button>
               </div>
               <p v-if="proxyErrors[sub.id]" class="mt-2 text-sm text-wings-danger">{{ proxyErrors[sub.id] }}</p>
@@ -160,6 +157,16 @@ const newUrl = ref('');
 const newMirrors = ref('');
 const newProxyUrl = ref('');
 const proxyDrafts = ref({});
+const proxyText = {
+  label: '\u041b\u043e\u043a\u0430\u043b\u044c\u043d\u044b\u0439 HTTP-\u043f\u0440\u043e\u043a\u0441\u0438',
+  hint: '\u041e\u0441\u0442\u0430\u0432\u044c\u0442\u0435 \u043f\u043e\u043b\u0435 \u043f\u0443\u0441\u0442\u044b\u043c \u0434\u043b\u044f \u043f\u0440\u044f\u043c\u043e\u0433\u043e \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f \u0438\u043b\u0438 \u0443\u043a\u0430\u0436\u0438\u0442\u0435 \u0430\u0434\u0440\u0435\u0441 \u0440\u0430\u0431\u043e\u0442\u0430\u044e\u0449\u0435\u0433\u043e \u043f\u0440\u043e\u043a\u0441\u0438, \u043d\u0430\u043f\u0440\u0438\u043c\u0435\u0440 Throne.',
+  refresh:
+    '\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u0435 \u0430\u0434\u0440\u0435\u0441, \u0437\u0430\u0442\u0435\u043c \u043e\u0431\u043d\u043e\u0432\u0438\u0442\u0435 \u043f\u043e\u0434\u043f\u0438\u0441\u043a\u0443.',
+  saving: '\u0421\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u0435...',
+  save: '\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c',
+  error:
+    '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0430\u0434\u0440\u0435\u0441 \u043f\u0440\u043e\u043a\u0441\u0438',
+};
 const proxyErrors = ref({});
 const savingProxy = ref('');
 const busy = ref(false);
@@ -266,7 +273,7 @@ async function setProxy(sub) {
   try {
     apply(await SubscriptionService.SetProxy(sub.id, (proxyDrafts.value[sub.id] ?? sub.proxyUrl ?? '').trim()));
   } catch (e) {
-    proxyErrors.value[sub.id] = safeError(e?.message ?? e ?? 'Could not save proxy');
+    proxyErrors.value[sub.id] = safeError(e?.message ?? e ?? proxyText.error);
   } finally {
     savingProxy.value = '';
   }
