@@ -227,6 +227,12 @@ func (s *AccountService) Access() (federation.Access, error) {
 	}
 	if s.store != nil && strings.TrimSpace(access.SubscriptionURL) != "" {
 		_ = s.store.EnsureFederationSubscription(access.SubscriptionURL)
+		for _, sub := range s.store.SubscriptionList() {
+			if sub.ID == config.FederationSubscriptionID && sub.URL == strings.TrimSpace(access.SubscriptionURL) && sub.LastUpdatedAt > 0 && sub.AdvertisedTotalBytes > 0 {
+				access.LimitBytes = sub.AdvertisedTotalBytes
+				break
+			}
+		}
 	}
 	return access, nil
 }

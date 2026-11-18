@@ -48,10 +48,10 @@
         <div class="grid grid-cols-2 gap-3">
           <div class="rounded-2xl bg-wings-surface px-4 py-4">
             <div class="text-sm text-wings-muted">серверов выдано</div>
-            <div class="mt-1 text-[22px] font-bold text-white">{{ access.servers.length }}</div>
+            <div class="mt-1 text-[22px] font-bold text-white">{{ access.servers?.length ?? 0 }}</div>
           </div>
           <div class="rounded-2xl bg-wings-surface px-4 py-4">
-            <div class="text-sm text-wings-muted">Доступно</div>
+            <div id="quota-label" class="text-sm text-wings-muted">Доступно</div>
             <div class="mt-1 text-[22px] font-bold text-white">{{ used }} / {{ limit }}</div>
           </div>
           <div class="rounded-2xl bg-wings-surface px-4 py-4">
@@ -64,12 +64,17 @@
           </div>
         </div>
 
-        <div class="rounded-full bg-emerald-600 py-3 text-center text-[15px] font-bold text-white">
-          Доверие {{ access.trustConfidence }} / 100
-        </div>
-        <div class="rounded-full bg-emerald-600 py-3 text-center text-[15px] font-bold text-white">
+        <AccountMeter v-if="access.trustBand" aria-labelledby="trust-label" :value="trust" :tint="trustTint">
+          <span id="trust-label">Доверие</span> {{ trust }} / 100
+        </AccountMeter>
+        <AccountMeter
+          v-if="access.usedBytes != null"
+          aria-labelledby="quota-label"
+          :value="remaining"
+          :tint="quotaTint"
+        >
           {{ used }} / {{ limit }}
-        </div>
+        </AccountMeter>
 
         <SamsungCard class="flex flex-col gap-0 py-1">
           <AccountRow
@@ -143,6 +148,7 @@ import SamsungCard from '@/components/layout/SamsungCard.vue';
 import SamsungButton from '@/components/layout/SamsungButton.vue';
 import OneuiInput from '@/components/controls/OneuiInput.vue';
 import AccountRow from '@/components/account/AccountRow.vue';
+import AccountMeter from '@/components/account/AccountMeter.vue';
 import { closeOverlay, openOverlay } from '@/stores/nav.js';
 import { showToast } from '@/stores/toast.js';
 import { sizedAvatar } from '@/lib/avatar.js';
@@ -151,7 +157,7 @@ import { usePinnedScroll } from '@/composables/usePinnedScroll.js';
 const rootEl = usePinnedScroll();
 
 const status = ref({ signedIn: false, username: '', panel: '', avatarUrl: '' });
-const access = ref({ servers: [], usedBytes: 0, limitBytes: 0, uplinkBps: 0, downlinkBps: 0, trustConfidence: 0 });
+const access = ref({ servers: [] });
 const login = ref('');
 const password = ref('');
 const error = ref('');
@@ -161,6 +167,17 @@ const used = computed(() => fmtBytes(access.value.usedBytes));
 const limit = computed(() => (access.value.limitBytes > 0 ? fmtBytes(access.value.limitBytes) : '∞'));
 const downlink = computed(() => fmtSpeed(access.value.downlinkBps));
 const uplink = computed(() => fmtSpeed(access.value.uplinkBps));
+const trust = computed(() => Math.min(100, Math.max(0, access.value.trustConfidence)));
+const trustTint = computed(() =>
+  trust.value < 30 ? 'bg-red-600' : trust.value < 60 ? 'bg-amber-600' : 'bg-emerald-600',
+);
+const remaining = computed(() => {
+  const { usedBytes, limitBytes } = access.value;
+  return limitBytes > 0 ? (Math.max(0, limitBytes - Math.max(0, usedBytes)) / limitBytes) * 100 : 100;
+});
+const quotaTint = computed(() =>
+  remaining.value <= 10 ? 'bg-red-600' : remaining.value <= 40 ? 'bg-amber-600' : 'bg-emerald-600',
+);
 
 function fmtBytes(n) {
   if (!n || n < 0) return '0 B';

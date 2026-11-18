@@ -646,6 +646,11 @@ func (s *Store) EnsureFederationSubscription(url string) error {
 			return s.saveLocked()
 		}
 		s.data.Subscriptions[i].URL = url
+		s.data.Subscriptions[i].LastUpdatedAt = 0
+		s.data.Subscriptions[i].AdvertisedTotalBytes = 0
+		s.data.Subscriptions[i].AdvertisedDownloadBytes = 0
+		s.data.Subscriptions[i].AdvertisedUploadBytes = 0
+		s.data.Subscriptions[i].AdvertisedExpireAt = 0
 		s.data.Subscriptions[i].Title = FederationSubscriptionTitle
 		s.data.Subscriptions[i].AutoUpdate = true
 		s.data.Subscriptions[i].RefreshIntervalMinutes = federationRefreshMinutes
