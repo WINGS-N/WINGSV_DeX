@@ -71,13 +71,14 @@ jobs:
       - name: Version
         id: v
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-      - name: Package (deb + AppImage + tar)
+      - name: Package (deb + Arch + AppImage + tar)
         env:
           VERSION: ${{ steps.v.outputs.version || '0.0.0' }}
           ARCH: ${{ matrix.arch }}
         run: |
           mkdir -p dist
           nfpm pkg -p deb -f build/linux/nfpm.yaml -t "dist/wingsv-dex_${VERSION:-0.0.0}_${{ matrix.arch }}.deb"
+          nfpm pkg -p archlinux -f build/linux/nfpm.yaml -t "dist/wingsv-dex-${VERSION:-0.0.0}-1-${{ matrix.aiarch }}.pkg.tar.zst"
           build/linux/appimage/build-appimage.sh ${{ matrix.aiarch }} bin dist
           tar -C bin -czf "dist/wingsv-dex-linux-${{ matrix.arch }}.tar.gz" wingsv-dex vkturn xray byedpi
       - uses: actions/upload-artifact@v4
@@ -176,6 +177,8 @@ jobs:
           files: |
             artifacts/linux-amd64/*.deb
             artifacts/linux-arm64/*.deb
+            artifacts/linux-amd64/*.pkg.tar.zst
+            artifacts/linux-arm64/*.pkg.tar.zst
             artifacts/linux-amd64/*.AppImage
             artifacts/linux-arm64/*.AppImage
             artifacts/linux-amd64/*.tar.gz

@@ -6,10 +6,10 @@ import "testing"
 
 func TestDetectKindNixStore(t *testing.T) {
 	t.Setenv("APPIMAGE", "/tmp/wingsv-dex.AppImage")
-	if got := detectKind("/nix/store/abc-wingsv-dex/bin/wingsv-dex"); got != KindNix {
+	if got := detectInstall("/nix/store/abc-wingsv-dex/bin/wingsv-dex").Kind; got != KindNix {
 		t.Fatalf("detectKind(nix store) = %q, want %q", got, KindNix)
 	}
-	if got := detectKind("/tmp/wingsv-dex"); got != KindAppImage {
+	if got := detectInstall("/tmp/wingsv-dex").Kind; got != KindAppImage {
 		t.Fatalf("detectKind(non-store AppImage) = %q, want %q", got, KindAppImage)
 	}
 }

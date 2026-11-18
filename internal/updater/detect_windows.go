@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func detectKind(exe string) Kind {
+func detectInstall(exe string) Install {
 	l := strings.ToLower(exe)
 	bases := []string{
 		os.Getenv("ProgramFiles"),
@@ -20,8 +20,8 @@ func detectKind(exe string) Kind {
 	}
 	for _, base := range bases {
 		if base != "" && strings.HasPrefix(l, strings.ToLower(base)) {
-			return KindWindowsSetup
+			return Install{Kind: KindWindowsSetup}
 		}
 	}
-	return KindWindowsPortable
+	return Install{Kind: KindWindowsPortable}
 }

@@ -9,20 +9,30 @@ import (
 	"strings"
 )
 
-func detectKind(exe string) Kind {
+func detectInstall(exe string) Install {
 	if strings.HasPrefix(filepath.Clean(exe), "/nix/store/") {
-		return KindNix
+		return Install{Kind: KindNix}
 	}
 	if os.Getenv("APPIMAGE") != "" {
-		return KindAppImage
+		return Install{Kind: KindAppImage}
+	}
+	if out, err := exec.Command("pacman", "-Qo", "--quiet", "--", exe).Output(); err == nil {
+		name := strings.TrimSpace(string(out))
+		result := Install{Kind: KindArch, Package: name}
+		if out, err := exec.Command("pacman", "-Q", "--", name).Output(); err == nil {
+			if fields := strings.Fields(string(out)); len(fields) == 2 {
+				result.Version = fields[1]
+			}
+		}
+		return result
 	}
 	if owns("dpkg", "-S", exe) {
-		return KindDeb
+		return Install{Kind: KindDeb}
 	}
 	if owns("rpm", "-qf", exe) {
-		return KindRPM
+		return Install{Kind: KindRPM}
 	}
-	return KindBinary
+	return Install{Kind: KindBinary}
 }
 
 func owns(bin string, args ...string) bool {

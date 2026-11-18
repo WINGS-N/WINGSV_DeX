@@ -29,12 +29,22 @@ func Apply(res Result, cb func(Progress)) error {
 	if inst.Kind == KindNix {
 		return errors.New("updates for Nix-installed builds must be applied with your Nix package manager")
 	}
+	if inst.Kind == KindArch && res.AppAsset == nil {
+		cb(Progress{Phase: "build"})
+		return buildArchPackage(inst, res.Latest, cb)
+	}
 	if res.AppAsset == nil {
 		return errors.New("no matching release asset for this install")
+	}
+	if !filepath.IsLocal(res.AppAsset.Name) || filepath.Base(res.AppAsset.Name) != res.AppAsset.Name {
+		return errors.New("invalid release asset name")
 	}
 	tmp, err := os.MkdirTemp("", "wingsv-dex-update-*")
 	if err != nil {
 		return err
+	}
+	if inst.Kind == KindDeb || inst.Kind == KindArch || inst.Kind == KindRPM {
+		defer os.RemoveAll(tmp)
 	}
 
 	appFile := filepath.Join(tmp, res.AppAsset.Name)
@@ -44,7 +54,7 @@ func Apply(res Result, cb func(Progress)) error {
 
 	cb(Progress{Phase: "install"})
 	switch inst.Kind {
-	case KindDeb, KindRPM, KindWindowsSetup:
+	case KindDeb, KindArch, KindRPM, KindWindowsSetup:
 		return packageInstall(inst, appFile)
 	default:
 		// Loose kinds ship a single archive holding the app, the vkturn child and (on

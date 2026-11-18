@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -15,7 +16,9 @@ func packageInstall(inst Install, file string) error {
 	l := strings.ToLower(file)
 	switch {
 	case strings.HasSuffix(l, ".deb"):
-		return runPkexec("dpkg", "-i", file)
+		return runPkexec("apt-get", "--yes", "--no-remove", "install", "--", file)
+	case inst.Kind == KindArch && strings.Contains(l, ".pkg.tar."):
+		return runPkexec("pacman", "-U", "--noconfirm", "--", file)
 	case strings.HasSuffix(l, ".rpm"):
 		return runPkexec("rpm", "-U", "--force", file)
 	}
@@ -59,7 +62,9 @@ func runPkexec(args ...string) error {
 
 // Restart launches the (now updated) executable detached from this process.
 func Restart(inst Install) error {
-	cmd := exec.Command(inst.ExePath)
+	// Wails holds the single-instance lock until the old process exits.
+	cmd := exec.Command("sh", "-c", `while kill -0 "$1" 2>/dev/null; do sleep 0.1; done; exec "$2"`,
+		"wingsv-dex-restart", strconv.Itoa(os.Getpid()), inst.ExePath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	return cmd.Start()
 }

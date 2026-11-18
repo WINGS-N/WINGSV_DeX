@@ -159,6 +159,7 @@ const version = ref('0.1.1');
 
 // Updater state.
 const KIND_LABELS = {
+  arch: 'Arch Linux (pacman)',
   deb: 'установлено через dpkg (.deb)',
   rpm: 'установлено через rpm',
   appimage: 'AppImage',
@@ -187,6 +188,7 @@ const updateTitle = computed(() => {
 });
 const updateSummary = computed(() => {
   if (installing.value) {
+    if (progress.value.phase === 'build') return 'makepkg...';
     const label = progress.value.phase === 'download-vk' ? 'Загрузка компонента' : 'Загрузка';
     if (progress.value.phase.startsWith('download') && progress.value.total > 0) return `${label} ${pct.value}%`;
     return 'Применение обновления...';
@@ -196,7 +198,7 @@ const updateSummary = computed(() => {
     const label = KIND_LABELS[update.value.kind] || 'нажмите, чтобы обновить';
     return `${label}. Нажмите, чтобы обновить`;
   }
-  if (update.value?.status === 'error') return 'Нажмите, чтобы повторить';
+  if (update.value?.status === 'error') return update.value.error || 'Нажмите, чтобы повторить';
   return `Установлена последняя версия ${version.value}. Нажмите, чтобы проверить ещё раз`;
 });
 
@@ -215,7 +217,7 @@ function onUpdateClick() {
   if (busy.value) return;
   if (isAvailable.value) {
     // No installable asset for this build -> just open the download page.
-    if (!update.value.appAsset) {
+    if (!update.value.appAsset && update.value.kind !== 'arch') {
       Browser.OpenURL(update.value.pageUrl || SOURCE_URL).catch(() => {});
       return;
     }
@@ -330,7 +332,7 @@ onMounted(async () => {
         stateMsg.value = 'Перезапуск...';
       } else if (s === 'error') {
         installing.value = false;
-        update.value = { status: 'error' };
+        update.value = { status: 'error', error: ev.data.error };
       } else if (s === 'uptodate') {
         installing.value = false;
         checkUpdate();

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -107,14 +108,20 @@ func (a *AboutService) ApplyUpdate() {
 
 	go func() {
 		res := updater.Check(appVersion())
-		if res.Status != "available" || res.AppAsset == nil {
+		if res.Status == "error" {
+			a.emit(UpdateStateEvent, map[string]any{"state": "error", "error": res.Error})
+			a.setApplying(false)
+			return
+		}
+		if res.Status != "available" || (res.AppAsset == nil && res.Kind != updater.KindArch) {
 			a.emit(UpdateStateEvent, map[string]any{"state": "uptodate"})
 			a.setApplying(false)
 			return
 		}
-		if a.stopVkturn != nil {
+		if runtime.GOOS == "windows" && a.stopVkturn != nil {
 			a.stopVkturn()
 		}
+		inst := updater.Detect()
 		a.emit(UpdateStateEvent, map[string]any{"state": "installing"})
 		if err := updater.Apply(res, func(p updater.Progress) { a.emit(UpdateProgressEvent, p) }); err != nil {
 			a.emit(UpdateStateEvent, map[string]any{"state": "error", "error": err.Error()})
@@ -122,7 +129,11 @@ func (a *AboutService) ApplyUpdate() {
 			return
 		}
 		a.emit(UpdateStateEvent, map[string]any{"state": "restarting"})
-		_ = updater.Restart(updater.Detect())
+		if err := updater.Restart(inst); err != nil {
+			a.emit(UpdateStateEvent, map[string]any{"state": "error", "error": err.Error()})
+			a.setApplying(false)
+			return
+		}
 		a.quit()
 	}()
 }

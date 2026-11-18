@@ -9,6 +9,10 @@ import (
 	"syscall"
 )
 
+func buildArchPackage(Install, string, func(Progress)) error {
+	return fmt.Errorf("Arch packages require Linux")
+}
+
 func packageInstall(inst Install, file string) error {
 	l := strings.ToLower(file)
 	switch {

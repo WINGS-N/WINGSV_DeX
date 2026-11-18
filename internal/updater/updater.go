@@ -28,6 +28,7 @@ type Kind string
 
 const (
 	KindDeb             Kind = "deb"
+	KindArch            Kind = "arch"
 	KindRPM             Kind = "rpm"
 	KindAppImage        Kind = "appimage"
 	KindWindowsSetup    Kind = "windows-setup"
@@ -44,6 +45,8 @@ type Install struct {
 	Dir        string
 	Arch       string
 	OS         string
+	Package    string
+	Version    string
 }
 
 // Asset is one downloadable file from a release.
@@ -72,10 +75,10 @@ func Detect() Install {
 			exe = resolved
 		}
 	}
-	kind := detectKind(exe)
+	inst := detectInstall(exe)
 	// A running AppImage reports its extracted AppRun as the executable; the file to
 	// replace is the .AppImage itself, exposed via $APPIMAGE.
-	if kind == KindAppImage {
+	if inst.Kind == KindAppImage {
 		if ai := os.Getenv("APPIMAGE"); ai != "" {
 			exe = ai
 		}
@@ -85,14 +88,9 @@ func Detect() Install {
 	if runtime.GOOS == "windows" {
 		vk += ".exe"
 	}
-	return Install{
-		Kind:       kind,
-		ExePath:    exe,
-		Dir:        dir,
-		VkturnPath: vk,
-		Arch:       runtime.GOARCH,
-		OS:         runtime.GOOS,
-	}
+	inst.ExePath, inst.Dir, inst.VkturnPath = exe, dir, vk
+	inst.Arch, inst.OS = runtime.GOARCH, runtime.GOOS
+	return inst
 }
 
 type ghRelease struct {
@@ -112,6 +110,18 @@ func Check(current string) Result {
 	res := Result{Status: "uptodate", Current: current, Latest: current, Kind: inst.Kind, PageURL: ReleasesPage}
 	if inst.Kind == KindNix {
 		return res
+	}
+	if inst.Kind == KindArch {
+		if inst.Version == "" {
+			res.Status, res.Error = "error", "cannot read the installed package version from pacman"
+			return res
+		}
+		res.Current, res.Latest = inst.Version, inst.Version
+		if inst.Package == "wingsv-dex-git" {
+			return checkArchGit(res)
+		}
+		// Pacman's final dash separates pkgrel from the upstream version.
+		current, _, _ = strings.Cut(inst.Version, "-")
 	}
 
 	rel, err := fetchLatest()
@@ -210,6 +220,11 @@ func pickAppAsset(inst Install, rel *ghRelease) *Asset {
 	switch inst.Kind {
 	case KindDeb:
 		return match(ends(".deb"))
+	case KindArch:
+		if inst.Package == "wingsv-dex" {
+			return match(ends(".pkg.tar.zst"))
+		}
+		return nil
 	case KindRPM:
 		return match(ends(".rpm"))
 	case KindAppImage:
@@ -231,7 +246,7 @@ func pickAppAsset(inst Install, rel *ghRelease) *Asset {
 	default: // KindBinary: a raw linux binary or a tar/zip carrying it
 		return match(func(n string) bool {
 			l := strings.ToLower(n)
-			if strings.HasSuffix(l, ".deb") || strings.HasSuffix(l, ".rpm") || strings.HasSuffix(l, ".appimage") {
+			if strings.HasSuffix(l, ".deb") || strings.HasSuffix(l, ".rpm") || strings.HasSuffix(l, ".appimage") || strings.Contains(l, ".pkg.tar.") {
 				return false
 			}
 			return strings.Contains(l, "linux")
