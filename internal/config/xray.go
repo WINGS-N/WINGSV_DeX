@@ -23,7 +23,6 @@ const (
 // desktop equivalent (they are tied to VpnService/ConnectivityManager) and are omitted.
 type XraySettings struct {
 	AllowLan               bool   `json:"allowLan"`
-	AllowInsecure          bool   `json:"allowInsecure"`
 	IPv6                   bool   `json:"ipv6"`
 	SniffingEnabled        bool   `json:"sniffingEnabled"`
 	ProxyQuicEnabled       bool   `json:"proxyQuicEnabled"`
@@ -494,9 +493,6 @@ func XraySettingsFromProto(s *wingsvpb.XraySettings) XraySettings {
 	}
 	if s.AllowLan != nil {
 		x.AllowLan = s.GetAllowLan()
-	}
-	if s.AllowInsecure != nil {
-		x.AllowInsecure = s.GetAllowInsecure()
 	}
 	if s.Ipv6 != nil {
 		x.IPv6 = s.GetIpv6()

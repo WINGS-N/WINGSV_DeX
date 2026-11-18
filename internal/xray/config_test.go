@@ -3,11 +3,44 @@ package xray
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/WINGS-N/wingsv-dex/internal/config"
 )
+
+func TestNormalizeLegacyOutbound(t *testing.T) {
+	for _, tc := range []struct{ current, legacy, want string }{
+		{"", " old ", "old"},
+		{"new", "old", "new"},
+		{"", " ", ""},
+	} {
+		tls := map[string]any{"allowInsecure": true, "verifyPeerCertByName": "example.org"}
+		reality := map[string]any{"allowInsecure": false, "serverName": "example.org"}
+		out := map[string]any{
+			"proxySettings": map[string]any{"tag": tc.legacy},
+			"streamSettings": map[string]any{
+				"tlsSettings": tls, "realitySettings": reality,
+				"sockopt": map[string]any{"dialerProxy": tc.current},
+			},
+		}
+		sockopt := normalizeOutbound(out)
+		if _, present := out["proxySettings"]; present || sockopt["dialerProxy"] != tc.want {
+			t.Errorf("legacy %q, current %q: got %v", tc.legacy, tc.current, out)
+		}
+		if _, present := tls["allowInsecure"]; present || tls["verifyPeerCertByName"] != "example.org" {
+			t.Errorf("unexpected TLS settings: %v", tls)
+		}
+		if _, present := reality["allowInsecure"]; present || reality["serverName"] != "example.org" {
+			t.Errorf("unexpected REALITY settings: %v", reality)
+		}
+	}
+	out := map[string]any{"proxySettings": map[string]any{"tag": "old"}}
+	if got := normalizeOutbound(out)["dialerProxy"]; got != "old" {
+		t.Errorf("legacy proxy without stream settings: %v", out)
+	}
+}
 
 // xrayBin locates the built helper; the test is skipped when it is absent (e.g. CI that
 // has not run build:xray), since Build shells out to it for link conversion.
@@ -32,7 +65,7 @@ func TestBuildProducesValidConfig(t *testing.T) {
 
 	out, err := Build(Options{
 		XrayBin:    bin,
-		Profile:    config.XrayProfile{RawLink: "vless://uuid@v.wingsnet.org:443?encryption=none&security=tls&type=tcp#Cyprus"},
+		Profile:    config.XrayProfile{RawLink: "vless://00000000-0000-4000-8000-000000000001@example.invalid:443?encryption=none&security=tls&type=tcp&allowInsecure=1#Test"},
 		Settings:   settings,
 		IncludeTun: true,
 	})
@@ -76,5 +109,12 @@ func TestBuildProducesValidConfig(t *testing.T) {
 	}
 	if len(cfg.Routing.Rules) == 0 {
 		t.Errorf("routing rules missing")
+	}
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(out), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := exec.Command(bin, "test", "-config", path).CombinedOutput(); err != nil {
+		t.Fatalf("core rejected the generated config: %s: %v", output, err)
 	}
 }

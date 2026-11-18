@@ -40,11 +40,6 @@
             v-model="form.proxyQuicEnabled"
             @update:model-value="save"
           />
-          <SwitchRow
-            title="Разрешать небезопасные сертификаты"
-            :model-value="form.allowInsecure"
-            @update:model-value="onAllowInsecure"
-          />
           <SwitchRow title="Доступ из локальной сети" v-model="form.allowLan" @update:model-value="save" />
           <SwitchRow
             title="Перезапуск при смене сети"
@@ -137,7 +132,6 @@ const transportOptions = [
 
 const form = reactive({
   allowLan: false,
-  allowInsecure: false,
   ipv6: true,
   sniffingEnabled: true,
   proxyQuicEnabled: false,
@@ -176,18 +170,10 @@ onMounted(async () => {
   }
 });
 
-// Disabling proxy auth or enabling allow-insecure weakens security, so gate them behind
-// the countdown warning (mirroring the app); on cancel the switch stays where it was.
 async function onAuthToggle(which, v) {
   if (!v && !(await warnConfirm(which === 'http' ? WARN.httpAuthDisable : WARN.socksAuthDisable))) return;
   if (which === 'http') form.httpProxyAuthEnabled = v;
   else form.localProxyAuthEnabled = v;
-  save();
-}
-
-async function onAllowInsecure(v) {
-  if (v && !(await warnConfirm(WARN.allowInsecure))) return;
-  form.allowInsecure = v;
   save();
 }
 

@@ -103,9 +103,6 @@ func Build(opts Options) (string, error) {
 	return string(raw), nil
 }
 
-// proxyOutbound converts the profile's share link into an xray outbound, tags it "proxy",
-// sanitizes the libXray quirk of stuffing the node remark into sendThrough, applies the
-// allow-insecure override, and chains it through the ByeDPI front when requested.
 func proxyOutbound(opts Options) (map[string]any, error) {
 	raw, err := convertLink(opts.XrayBin, opts.Profile.RawLink)
 	if err != nil {
@@ -121,26 +118,22 @@ func proxyOutbound(opts Options) (map[string]any, error) {
 	if st, ok := out["sendThrough"].(string); ok && net.ParseIP(st) == nil {
 		delete(out, "sendThrough")
 	}
-	if opts.Settings.AllowInsecure {
-		applyAllowInsecure(out)
-	}
+	sockopt := normalizeOutbound(out)
 	// Force the node to re-resolve the target through xray's own DNS rather than trust
 	// the address the client picked: on a hostile uplink that address is a poisoned
 	// answer from the captured system resolver, and connections that arrive without a
 	// sniffable name would otherwise dial it straight through the tunnel.
-	ensureSockopt(out)["domainStrategy"] = forceStrategy(opts.Settings.IPv6)
+	sockopt["domainStrategy"] = forceStrategy(opts.Settings.IPv6)
 	if opts.ByeDPIFrontSocks != "" {
 		// Chain the node's dial through the local ByeDPI front. xray-core dropped the
 		// outbound "proxySettings" field; the dialer-proxy tag now lives on the stream's
 		// sockopt and always operates at the transport layer.
-		ensureSockopt(out)["dialerProxy"] = "byedpi-front"
+		sockopt["dialerProxy"] = "byedpi-front"
 	}
 	return out, nil
 }
 
-// ensureSockopt returns the outbound's streamSettings.sockopt object, creating the
-// streamSettings and sockopt maps if the converted outbound lacks them.
-func ensureSockopt(out map[string]any) map[string]any {
+func normalizeOutbound(out map[string]any) map[string]any {
 	ss, _ := out["streamSettings"].(map[string]any)
 	if ss == nil {
 		ss = map[string]any{}
@@ -150,6 +143,17 @@ func ensureSockopt(out map[string]any) map[string]any {
 	if so == nil {
 		so = map[string]any{}
 		ss["sockopt"] = so
+	}
+	for _, key := range []string{"tlsSettings", "realitySettings"} {
+		settings, _ := ss[key].(map[string]any)
+		delete(settings, "allowInsecure")
+	}
+	legacy, _ := out["proxySettings"].(map[string]any)
+	delete(out, "proxySettings")
+	tag, _ := legacy["tag"].(string)
+	current, _ := so["dialerProxy"].(string)
+	if tag = strings.TrimSpace(tag); tag != "" && strings.TrimSpace(current) == "" {
+		so["dialerProxy"] = tag
 	}
 	return so
 }
@@ -440,20 +444,6 @@ func dnsServerHosts(values ...string) []string {
 		}
 	}
 	return hosts
-}
-
-// applyAllowInsecure sets allowInsecure on the outbound's TLS/REALITY stream settings so a
-// self-signed or hostname-mismatched cert is accepted (only when the user opts in).
-func applyAllowInsecure(out map[string]any) {
-	ss, ok := out["streamSettings"].(map[string]any)
-	if !ok {
-		return
-	}
-	for _, key := range []string{"tlsSettings", "realitySettings"} {
-		if t, ok := ss[key].(map[string]any); ok {
-			t["allowInsecure"] = true
-		}
-	}
 }
 
 func listenAddr(addr string) string {

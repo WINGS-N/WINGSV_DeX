@@ -7,8 +7,6 @@ export const WARN = {
   httpAuthDisable: 'Вы отключаете аутентификацию HTTP прокси. Это снизит безопасность вашего соединения',
   socksWeak: 'Задан слишком простой пароль SOCKS сервера. Это снизит безопасность вашего соединения',
   httpWeak: 'Задан слишком простой пароль HTTP прокси. Это снизит безопасность вашего соединения',
-  allowInsecure:
-    'Вы отключаете проверку TLS-сертификатов в outbound Xray. Соединение становится уязвимым к MITM-атакам',
 };
 
 // warnConfirm shows the security warning and resolves true only after the user waits out the
