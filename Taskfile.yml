@@ -51,6 +51,18 @@ tasks:
     cmds:
       - task: "{{.GOOS}}:run"
 
+  install:
+    desc: Install the local package produced by linux:create:aur
+    platforms: [linux]
+    interactive: true
+    vars:
+      PKG: '{{.BIN_DIR}}/{{.APP_NAME}}.pkg.tar.zst'
+    preconditions:
+      - sh: 'test -f "{{.PKG}}"'
+        msg: Run task linux:create:aur first.
+    cmds:
+      - 'sudo pacman -U -- "{{.PKG}}"'
+
   dev:
     summary: Runs the application in development mode
     cmds:
