@@ -77,8 +77,8 @@ jobs:
           ARCH: ${{ matrix.arch }}
         run: |
           mkdir -p dist
-          nfpm pkg -p deb -f build/linux/nfpm.yaml -t "dist/wingsv-dex_${VERSION:-0.0.0}_${{ matrix.arch }}.deb"
-          nfpm pkg -p archlinux -f build/linux/nfpm.yaml -t "dist/wingsv-dex-${VERSION:-0.0.0}-1-${{ matrix.aiarch }}.pkg.tar.zst"
+          nfpm pkg -p deb -f build/linux/nfpm.yaml -t "dist/wingsv-dex-${{ matrix.arch }}.deb"
+          nfpm pkg -p archlinux -f build/linux/nfpm.yaml -t "dist/wingsv-dex-${{ matrix.arch }}.pkg.tar.zst"
           build/linux/appimage/build-appimage.sh ${{ matrix.aiarch }} bin dist
           tar -C bin -czf "dist/wingsv-dex-linux-${{ matrix.arch }}.tar.gz" wingsv-dex vkturn xray byedpi
       - uses: actions/upload-artifact@v4
